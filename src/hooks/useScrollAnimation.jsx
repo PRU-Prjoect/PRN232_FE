@@ -7,15 +7,13 @@ const useScrollAnimation = (threshold = 0.1) => {
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        // When the element is visible in the viewport
         if (entry.isIntersecting) {
           setIsVisible(true);
-          // Once it's visible, no need to observe anymore
           observer.unobserve(entry.target);
         }
       },
       {
-        threshold, // Percentage of element visibility needed to trigger the callback
+        threshold, 
       }
     );
 

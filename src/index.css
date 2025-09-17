@@ -23,7 +23,6 @@ body {
   min-height: 100vh;
 }
 
-/* Scroll animations */
 .fade-in-up {
   opacity: 0;
   transform: translateY(30px);
@@ -66,7 +65,6 @@ body {
   opacity: 1;
 }
 
-/* Delay utilities */
 .delay-100 {
   transition-delay: 100ms;
 }

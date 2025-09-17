@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+const sampleUsers = [
+  { email: "student@fpt.edu.vn", password: "student123", role: "student", name: "Student User" },
+  { email: "teacher@fpt.edu.vn", password: "teacher123", role: "teacher", name: "Teacher User" },
+  { email: "admin@fpt.edu.vn", password: "admin123", role: "admin", name: "Admin User" }
+];
+
 const Login = () => {
   const [credentials, setCredentials] = useState({
     email: "",
@@ -20,12 +26,27 @@ const Login = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setError("");
-    if (credentials.email && credentials.password) {
-      console.log("Logging in with:", credentials);
+    
+    if (!credentials.email || !credentials.password) {
+      setError("Please enter both email and password");
+      return;
+    }
+    
+    const user = sampleUsers.find(
+      (user) => user.email === credentials.email && user.password === credentials.password
+    );
+    
+    if (user) {
+      console.log("Logging in with:", user);
       localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("user", JSON.stringify({
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }));
       navigate("/");
     } else {
-      setError("Please enter both email and password");
+      setError("Invalid email or password. Try one of the sample accounts shown below.");
     }
   };
 
@@ -169,6 +190,30 @@ const Login = () => {
               </p>
             </div>
           </form>
+          
+          {/* Sample credentials */}
+          <div className="mt-8 border-t border-gray-200 pt-6">
+            <h3 className="text-sm font-medium text-gray-900">Sample Login Credentials</h3>
+            <div className="mt-4 bg-gray-50 rounded-md p-4 text-xs">
+              <div className="space-y-3">
+                <div>
+                  <p className="font-semibold">Student Account:</p>
+                  <p><span className="text-gray-500">Email:</span> student@fpt.edu.vn</p>
+                  <p><span className="text-gray-500">Password:</span> student123</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Teacher Account:</p>
+                  <p><span className="text-gray-500">Email:</span> teacher@fpt.edu.vn</p>
+                  <p><span className="text-gray-500">Password:</span> teacher123</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Admin Account:</p>
+                  <p><span className="text-gray-500">Email:</span> admin@fpt.edu.vn</p>
+                  <p><span className="text-gray-500">Password:</span> admin123</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

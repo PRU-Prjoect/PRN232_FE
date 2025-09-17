@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import FileUploader from './FileUploader';
 import FileViewer from './FileViewer';
+import SubmissionsList from './SubmissionsList';
 
 const courseData = {
   swd392: {
@@ -14,19 +15,35 @@ const courseData = {
 
 const ExamFileManager = () => {
   const { courseId } = useParams();
+  const navigate = useNavigate();
   const [extractedFiles, setExtractedFiles] = useState([]);
   const [courseInfo, setCourseInfo] = useState(null);
   const [activeTab, setActiveTab] = useState('upload');
+  const [user, setUser] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isTeacher, setIsTeacher] = useState(false);
 
   useEffect(() => {
-    // Set course info based on the courseId parameter
-    if (courseId && courseData[courseId]) {
+    const loggedIn = localStorage.getItem("isLoggedIn") === "true";
+    setIsLoggedIn(loggedIn);
+    
+    if (!loggedIn) {
+      navigate('/login');
+      return;
+    }
+    
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    setUser(userData);
+    setIsTeacher(userData?.role === 'teacher' || userData?.role === 'admin');
+    if (userData?.role === 'teacher' || userData?.role === 'admin') {
+      setActiveTab('submissions');
+    }
+        if (courseId && courseData[courseId]) {
       setCourseInfo(courseData[courseId]);
     } else {
-      // Default to SWD392 if no valid course ID is provided
       setCourseInfo(courseData.swd392);
     }
-  }, [courseId]);
+  }, [courseId, navigate]);
 
   const handleFilesExtracted = (files) => {
     setExtractedFiles(files);
@@ -96,10 +113,29 @@ const ExamFileManager = () => {
 
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex space-x-8 overflow-x-auto">
+            {/* Teacher-only tab */}
+            {isTeacher && (
+              <button
+                onClick={() => setActiveTab('submissions')}
+                className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                  activeTab === 'submissions'
+                    ? `border-orange-500 text-orange-600`
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  Student Submissions
+                </div>
+              </button>
+            )}
+            
             <button
               onClick={() => setActiveTab('upload')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                 activeTab === 'upload'
                   ? `border-orange-500 text-orange-600`
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -112,9 +148,10 @@ const ExamFileManager = () => {
                 Upload Files
               </div>
             </button>
+            
             <button
               onClick={() => setActiveTab('files')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                 activeTab === 'files'
                   ? `border-orange-500 text-orange-600`
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -132,9 +169,10 @@ const ExamFileManager = () => {
                 )}
               </div>
             </button>
+            
             <button
               onClick={() => setActiveTab('grades')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                 activeTab === 'grades'
                   ? `border-orange-500 text-orange-600`
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -147,9 +185,10 @@ const ExamFileManager = () => {
                 Grades
               </div>
             </button>
+            
             <button
               onClick={() => setActiveTab('reports')}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+              className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                 activeTab === 'reports'
                   ? `border-orange-500 text-orange-600`
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -166,6 +205,11 @@ const ExamFileManager = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Teacher-only Submissions Tab */}
+          {activeTab === 'submissions' && isTeacher && (
+            <SubmissionsList courseId={courseId} />
+          )}
+        
           {activeTab === 'upload' && (
             <div className="p-6">
               <div className="mb-6">
