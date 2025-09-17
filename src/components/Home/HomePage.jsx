@@ -1,7 +1,7 @@
 // src/pages/HomePage.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import useScrollAnimation from "../hooks/useScrollAnimation";
+import useScrollAnimation from "../../hooks/useScrollAnimation";
 
 const courses = [
   {

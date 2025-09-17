@@ -1,8 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import HomePage from './components/HomePage'
+import HomePage from './components/Home/HomePage'
 import ExamFileManager from './components/ExamFileManager'
-import Login from './components/Login'
-import Register from './components/Register'
+import Login from './components/Home/Login'
+import Register from './components/Home/Register'
 
 function App() {
   return (
