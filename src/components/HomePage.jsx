@@ -40,12 +40,9 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user is logged in
     const loggedIn = localStorage.getItem("isLoggedIn") === "true";
     setIsLoggedIn(loggedIn);
-    
-    // Get user info if logged in
-    if (loggedIn) {
+        if (loggedIn) {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
       setUser(userData);
     }
@@ -56,7 +53,6 @@ const HomePage = () => {
     localStorage.removeItem("user");
     setIsLoggedIn(false);
     setUser(null);
-    // Redirect to login page
     navigate("/login");
   };
 

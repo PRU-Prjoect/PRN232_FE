@@ -38,11 +38,7 @@ const Register = () => {
       setError("Password must be at least 6 characters");
       return;
     }
-
-    // Mock registration logic - replace with actual API call
     console.log("Registering with:", formData);
-    
-    // For demo purposes, simulate successful registration
     localStorage.setItem("isRegistered", "true");
     navigate("/login");
   };

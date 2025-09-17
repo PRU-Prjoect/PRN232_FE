@@ -43,8 +43,6 @@ const FileUploader = ({ onFilesExtracted }) => {
       });
 
       await Promise.all(filePromises);
-
-      // Sort files by name
       extractedFiles.sort((a, b) => a.name.localeCompare(b.name));
 
       onFilesExtracted(extractedFiles);
@@ -65,7 +63,6 @@ const FileUploader = ({ onFilesExtracted }) => {
     }
   });
 
-  // Helper function to determine file type
   const getFileType = (fileName) => {
     const extension = fileName.split('.').pop().toLowerCase();
     switch (extension) {

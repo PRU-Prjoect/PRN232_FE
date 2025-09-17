@@ -178,7 +178,6 @@ const FileViewer = ({ files }) => {
       </div>
       
       <div className="flex flex-1 overflow-hidden">
-        {/* File list sidebar */}
         <div className="w-1/3 border-r overflow-y-auto">
           {Object.keys(filteredGroups).length === 0 ? (
             <div className="p-4 text-center text-gray-500">
@@ -229,8 +228,6 @@ const FileViewer = ({ files }) => {
             ))
           )}
         </div>
-        
-        {/* File preview */}
         <div className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-auto flex items-center justify-center p-4">
           {selectedFile ? (
             renderFilePreview()

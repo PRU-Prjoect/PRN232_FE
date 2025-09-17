@@ -63,7 +63,6 @@ const SubmissionsList = ({ courseId }) => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [submissions, setSubmissions] = useState(sampleSubmissions);
 
-  // Filter submissions based on search term and status
   const filteredSubmissions = submissions.filter(submission => {
     const matchesSearch = 
       submission.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,7 +86,6 @@ const SubmissionsList = ({ courseId }) => {
   };
   
   const handleSaveGrade = (updatedSubmission) => {
-    // Update the submission in the list
     const updatedSubmissions = submissions.map(sub => 
       sub.id === updatedSubmission.id ? updatedSubmission : sub
     );
@@ -243,7 +241,6 @@ const SubmissionsList = ({ courseId }) => {
         </div>
       )}
       
-      {/* Grading Modal */}
       {isGradingModalOpen && selectedSubmission && (
         <GradingModal 
           submission={selectedSubmission}
@@ -252,7 +249,6 @@ const SubmissionsList = ({ courseId }) => {
         />
       )}
       
-      {/* Submission Viewer Modal */}
       {isViewerOpen && selectedSubmission && (
         <SubmissionViewer
           submission={selectedSubmission}

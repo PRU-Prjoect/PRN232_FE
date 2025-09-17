@@ -9,7 +9,6 @@ const GradingModal = ({ submission, onClose, onSave }) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Simulate API call delay
     setTimeout(() => {
       onSave({
         ...submission,
