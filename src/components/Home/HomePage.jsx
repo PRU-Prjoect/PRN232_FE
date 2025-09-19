@@ -37,12 +37,13 @@ const courses = [
 const HomePage = () => {
   const [user, setUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loggedIn = localStorage.getItem("isLoggedIn") === "true";
     setIsLoggedIn(loggedIn);
-        if (loggedIn) {
+    if (loggedIn) {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
       setUser(userData);
     }
@@ -56,33 +57,91 @@ const HomePage = () => {
     navigate("/login");
   };
 
+  const handleCourseAccess = (courseId) => {
+    if (!isLoggedIn) {
+      navigate("/login");
+      return;
+    }
+
+    if (courseId === 'swd392') {
+      navigate(`/course/${courseId}`);
+    } else {
+      navigate('/course/not-found');
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white text-gray-900">
       <header className="sticky top-0 bg-white border-b border-gray-200 z-50">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-orange-500">FPT University</h1>
           <div className="flex space-x-4 items-center">
-            <button className="px-4 py-2 text-gray-600 hover:text-orange-600 font-medium transition">
+            <Link 
+              to="/about" 
+              className="px-4 py-2 text-gray-600 hover:text-orange-600 font-medium transition"
+            >
               About
-            </button>
+            </Link>
+            <Link 
+              to="/courses" 
+              className="px-4 py-2 text-gray-600 hover:text-orange-600 font-medium transition"
+            >
+              Courses
+            </Link>
             
             {isLoggedIn ? (
-              <>
-                <div className="flex items-center">
-                  <span className="text-sm text-gray-700 mr-2">
-                    Welcome, <span className="font-semibold">{user?.name || 'User'}</span>
+              <div className="relative">
+                <button 
+                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                  className="flex items-center space-x-2 focus:outline-none"
+                >
+                  <span className="text-sm text-gray-700">
+                    Welcome, <span className="font-semibold">{user?.name || 'Student User'}</span>
                   </span>
                   <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                    {user?.role || 'User'}
+                    {user?.role || 'student'}
                   </span>
-                </div>
-                <button 
-                  onClick={handleLogout}
-                  className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium shadow-sm transition"
-                >
-                  Logout
+                  <svg 
+                    className={`w-4 h-4 transform transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} 
+                    fill="currentColor" 
+                    viewBox="0 0 20 20"
+                  >
+                    <path 
+                      fillRule="evenodd" 
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" 
+                      clipRule="evenodd" 
+                    />
+                  </svg>
                 </button>
-              </>
+
+                {isProfileDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg">
+                    <div className="p-4 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold">{user?.name || 'Student User'}</h3>
+                      <p className="text-sm text-gray-600">{user?.email || 'student@fpt.edu.vn'}</p>
+                    </div>
+                    <div className="py-1">
+                      <div className="px-4 py-2 text-sm text-gray-700">
+                        <strong>Student ID:</strong> {user?.studentId || 'HE000000'}
+                      </div>
+                      <div className="px-4 py-2 text-sm text-gray-700">
+                        <strong>Role:</strong> {user?.role || 'Student'}
+                      </div>
+                      <div className="px-4 py-2 text-sm text-gray-700">
+                        <strong>Department:</strong> Software Engineering
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-200 py-1">
+                      <button 
+                        onClick={handleLogout}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <Link to="/register" className="px-5 py-2 border border-orange-500 text-orange-500 hover:bg-orange-50 rounded-lg font-medium shadow-sm transition inline-block">
@@ -152,8 +211,7 @@ const HomePage = () => {
               >
                 <h2 className="text-3xl font-bold">Our Courses</h2>
                 <p className="mt-3 text-gray-600 max-w-2xl mx-auto">
-                  Select a course to manage exam submissions and view study
-                  materials.
+                  Select a course to manage exam submissions and view results.
                 </p>
               </div>
             );
@@ -178,9 +236,12 @@ const HomePage = () => {
                     <p className="text-gray-600 flex-grow">{course.description}</p>
                     <div className="mt-6 pt-4 border-t border-gray-100">
                       {isLoggedIn ? (
-                        <Link to={`/course/${course.id}`} className="text-orange-600 font-medium hover:text-orange-700">
+                        <button 
+                          onClick={() => handleCourseAccess(course.id)}
+                          className="text-orange-600 hover:text-orange-700 font-medium transition"
+                        >
                           Access Course
-                        </Link>
+                        </button>
                       ) : (
                         <div className="flex items-center justify-between">
                           <span className="text-gray-400">Access Course</span>

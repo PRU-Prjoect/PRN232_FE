@@ -3,6 +3,9 @@ import HomePage from './components/Home/HomePage'
 import ExamFileManager from './components/ExamFileManager'
 import Login from './components/Home/Login'
 import Register from './components/Home/Register'
+import GroupIntroduction from './pages/GroupIntroduction'
+import CourseOverview from './pages/CourseOverview'
+import NotFound from './pages/NotFound'
 
 function App() {
   return (
@@ -12,7 +15,12 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/course/:courseId" element={<ExamFileManager />} />
+          <Route path="/course/swd392" element={<ExamFileManager />} />
+          <Route path="/course/not-found" element={<NotFound />} />
+          <Route path="/course/:courseId" element={<NotFound />} />
+          <Route path="/about" element={<GroupIntroduction />} />
+          <Route path="/courses" element={<CourseOverview />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
     </Router>
