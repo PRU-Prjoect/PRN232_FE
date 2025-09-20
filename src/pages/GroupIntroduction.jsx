@@ -115,7 +115,6 @@ const GroupIntroduction = () => {
           </div>
         </div>
 
-        {/* Team Members Section */}
         <div className="bg-gray-50 p-8">
           <h2 className="text-3xl font-bold text-center text-orange-600 mb-12">Thành Viên Nhóm</h2>
           <div className="grid md:grid-cols-2 gap-8">

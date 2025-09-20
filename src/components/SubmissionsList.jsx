@@ -67,7 +67,6 @@ const SubmissionsList = ({ courseId }) => {
     const matchesSearch = 
       submission.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       submission.studentId.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesStatus = 
       statusFilter === 'all' || 
       submission.status === statusFilter;

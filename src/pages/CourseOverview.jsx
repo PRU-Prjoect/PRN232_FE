@@ -8,7 +8,7 @@ const CourseOverview = () => {
       code: "SWD392",
       name: "Software Architecture and Design",
       description: "Explore advanced software design principles, architectural patterns, and best practices in software engineering.",
-      semester: "Kỳ 8",
+      semester: "Kỳ 7",
       focus: ["Design Patterns", "Architectural Styles", "System Design"],
       prerequisites: ["PRN231", "SWE201"],
       icon: "🏗️"
@@ -74,7 +74,6 @@ const CourseOverview = () => {
         transition={{ duration: 0.6 }}
         className="max-w-6xl mx-auto bg-white shadow-2xl rounded-2xl overflow-hidden"
       >
-        {/* Header Section */}
         <div className="bg-gradient-to-r from-orange-500 to-red-600 text-white py-16 px-8 text-center">
           <motion.h1 
             initial={{ scale: 0.8, opacity: 0 }}
@@ -88,8 +87,6 @@ const CourseOverview = () => {
             Khám phá mối liên kết và sự phát triển kiến thức giữa các môn học trong chương trình
           </p>
         </div>
-
-        {/* Courses Section */}
         <div className="p-8">
           <h2 className="text-3xl font-bold text-center text-orange-600 mb-12">Các Môn Học</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">

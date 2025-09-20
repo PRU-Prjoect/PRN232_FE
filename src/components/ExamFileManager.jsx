@@ -212,12 +212,10 @@ const ExamFileManager = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Teacher-only Submissions Tab */}
           {activeTab === 'submissions' && isTeacher && (
             <SubmissionsList courseId={courseId} />
           )}
         
-          {/* Student-only Upload Tab */}
           {activeTab === 'upload' && !isTeacher && (
             <div className="p-6">
               <div className="mb-6">
@@ -254,7 +252,6 @@ const ExamFileManager = () => {
             </div>
           )}
 
-          {/* Student-only Files Tab */}
           {activeTab === 'files' && !isTeacher && (
             <div>
               {extractedFiles.length > 0 ? (
@@ -279,7 +276,6 @@ const ExamFileManager = () => {
             </div>
           )}
 
-          {/* Grades Tab for Students */}
           {activeTab === 'grades' && !isTeacher && (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
