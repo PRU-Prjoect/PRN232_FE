@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useScrollAnimation from "../../hooks/useScrollAnimation";
+import { useAuth } from "../../contexts/AuthContext";
 
 const courses = [
   {
@@ -35,25 +36,12 @@ const courses = [
 ];
 
 const HomePage = () => {
-  const [user, setUser] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true";
-    setIsLoggedIn(loggedIn);
-    if (loggedIn) {
-      const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      setUser(userData);
-    }
-  }, []);
+  const { user, isLoggedIn, logout, isLecturer, isAdmin } = useAuth();
   
   const handleLogout = () => {
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("user");
-    setIsLoggedIn(false);
-    setUser(null);
+    logout();
     navigate("/login");
   };
 
@@ -96,10 +84,14 @@ const HomePage = () => {
                   className="flex items-center space-x-2 focus:outline-none"
                 >
                   <span className="text-sm text-gray-700">
-                    Welcome, <span className="font-semibold">{user?.name || 'Student User'}</span>
+                    Welcome <span className="font-semibold">{user?.name}</span>
                   </span>
-                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                    {user?.role || 'student'}
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    user?.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                    user?.role === 'lecturer' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {user?.role || 'guest'}
                   </span>
                   <svg 
                     className={`w-4 h-4 transform transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} 
@@ -117,19 +109,46 @@ const HomePage = () => {
                 {isProfileDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg">
                     <div className="p-4 border-b border-gray-200">
-                      <h3 className="text-lg font-semibold">{user?.name || 'Student User'}</h3>
+                      <h3 className="text-lg font-semibold">{user?.name || 'Email: '}</h3>
                       <p className="text-sm text-gray-600">{user?.email || 'student@fpt.edu.vn'}</p>
                     </div>
                     <div className="py-1">
+                      {user?.studentId && (
+                        <div className="px-4 py-2 text-sm text-gray-700">
+                          <strong>Student ID:</strong> {user.studentId}
+                        </div>
+                      )}
                       <div className="px-4 py-2 text-sm text-gray-700">
-                        <strong>Student ID:</strong> {user?.studentId || 'HE000000'}
+                        <strong>Role:</strong> <span className={`px-2 py-1 rounded text-xs ${
+                          user?.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                          user?.role === 'lecturer' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>{user?.role || 'Guest'}</span>
                       </div>
                       <div className="px-4 py-2 text-sm text-gray-700">
-                        <strong>Role:</strong> {user?.role || 'Student'}
+                        <strong>Department:</strong> {user?.department || 'Software Engineering'}
                       </div>
-                      <div className="px-4 py-2 text-sm text-gray-700">
-                        <strong>Department:</strong> Software Engineering
-                      </div>
+                      {isAdmin() && (
+                        <div className="px-4 py-2 text-sm text-gray-700">
+                          <strong>Permissions:</strong> 
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Assign Submissions</span>
+                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Approve Scores</span>
+                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Manage Users</span>
+                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Export Reports</span>
+                          </div>
+                        </div>
+                      )}
+                      {isLecturer() && (
+                        <div className="px-4 py-2 text-sm text-gray-700">
+                          <strong>Permissions:</strong> 
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">Grade Submissions</span>
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">View Details</span>
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">Add Notes</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="border-t border-gray-200 py-1">
                       <button 
@@ -165,14 +184,55 @@ const HomePage = () => {
                 className={`md:w-1/2 space-y-6 text-center md:text-left fade-in-left ${textVisible ? 'visible' : ''}`}
               >
                 <h1 className="text-5xl font-extrabold leading-tight">
-                  Welcome to{" "}
-                  <span className="text-orange-500">FPT University</span>
+                  {isLoggedIn ? `Welcome back!` : 'Welcome to'} {" "}
+                  <span className="text-orange-500">{isLoggedIn ? '👋' : 'FPT University'}</span>
                 </h1>
                 <p className="text-lg text-gray-700">
-                  FPT University provides high-quality education in software
-                  engineering, IT, and modern sciences. Explore our courses and
-                  start your journey today.
+                  {isLoggedIn && isAdmin() ? 
+                    'Manage exam assignments, approve scores, and oversee the grading process for lecturers.' :
+                    isLoggedIn && isLecturer() ? 
+                    'Grade student assignments, review submissions, and provide detailed feedback.' :
+                    'FPT University provides high-quality education in software engineering, IT, and modern sciences. Explore our courses and start your journey today.'
+                  }
                 </p>
+                {isLoggedIn && isAdmin() && (
+                  <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-purple-800">
+                          Admin Dashboard
+                        </h3>
+                        <div className="mt-2 text-sm text-purple-700">
+                          <p>Assign assignments to lecturers, approve scores, and manage system users.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {isLoggedIn && isLecturer() && (
+                  <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-blue-800">
+                          Lecturer Dashboard
+                        </h3>
+                        <div className="mt-2 text-sm text-blue-700">
+                          <p>View assigned submissions, grade student work, and provide detailed feedback.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <a
                   href="#courses"
                   className="inline-block px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition"
@@ -211,7 +271,12 @@ const HomePage = () => {
               >
                 <h2 className="text-3xl font-bold">Our Courses</h2>
                 <p className="mt-3 text-gray-600 max-w-2xl mx-auto">
-                  Select a course to manage exam submissions and view results.
+                  {isLoggedIn && isAdmin() ? 
+                    'Assign exam submissions to lecturers and approve final scores.' :
+                    isLoggedIn && isLecturer() ? 
+                    'Grade assigned student submissions for each course.' :
+                    'Select a course to manage exam submissions and view results.'
+                  }
                 </p>
               </div>
             );
@@ -236,12 +301,32 @@ const HomePage = () => {
                     <p className="text-gray-600 flex-grow">{course.description}</p>
                     <div className="mt-6 pt-4 border-t border-gray-100">
                       {isLoggedIn ? (
-                        <button 
-                          onClick={() => handleCourseAccess(course.id)}
-                          className="text-orange-600 hover:text-orange-700 font-medium transition"
-                        >
-                          Access Course
-                        </button>
+                        <div className="space-y-2">
+                          <button 
+                            onClick={() => handleCourseAccess(course.id)}
+                            className="w-full text-orange-600 hover:text-orange-700 font-medium transition py-2 text-center rounded-lg hover:bg-orange-50"
+                          >
+                            {isAdmin() ? 'Manage Assignments & Approve Scores' : isLecturer() ? 'Grade Assigned Submissions' : 'View Course'}
+                          </button>
+                          {isAdmin() && (
+                            <div className="text-xs text-gray-500 flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path>
+                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"></path>
+                              </svg>
+                              Assign & approve submissions
+                            </div>
+                          )}
+                          {isLecturer() && (
+                            <div className="text-xs text-gray-500 flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path>
+                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"></path>
+                              </svg>
+                              Grade assigned work
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <div className="flex items-center justify-between">
                           <span className="text-gray-400">Access Course</span>

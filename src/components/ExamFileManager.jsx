@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import FileUploader from './FileUploader';
 import FileViewer from './FileViewer';
 import SubmissionsList from './SubmissionsList';
+import { useAuth } from '../contexts/AuthContext';
 
 const courseData = {
   swd392: {
@@ -18,32 +19,28 @@ const ExamFileManager = () => {
   const navigate = useNavigate();
   const [extractedFiles, setExtractedFiles] = useState([]);
   const [courseInfo, setCourseInfo] = useState(null);
-  const [activeTab, setActiveTab] = useState('upload');
-  const [user, setUser] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isTeacher, setIsTeacher] = useState(false);
+  const [activeTab, setActiveTab] = useState('submissions');
+  const { user, isLoggedIn, isLecturer, isAdmin } = useAuth();
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true";
-    setIsLoggedIn(loggedIn);
-    
-    if (!loggedIn) {
+    if (!isLoggedIn) {
       navigate('/login');
       return;
     }
     
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    setUser(userData);
-    setIsTeacher(userData?.role === 'teacher' || userData?.role === 'admin');
-    if (userData?.role === 'teacher' || userData?.role === 'admin') {
+    // Set default tab based on role
+    if (isLecturer()) {
       setActiveTab('submissions');
+    } else if (isAdmin()) {
+      setActiveTab('assign');
     }
-        if (courseId && courseData[courseId]) {
+    
+    if (courseId && courseData[courseId]) {
       setCourseInfo(courseData[courseId]);
     } else {
       setCourseInfo(courseData.swd392);
     }
-  }, [courseId, navigate]);
+  }, [courseId, navigate, isLoggedIn, isLecturer, isAdmin]);
 
   const handleFilesExtracted = (files) => {
     setExtractedFiles(files);
@@ -114,9 +111,25 @@ const ExamFileManager = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6 border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 overflow-x-auto">
-            {/* Teacher tabs */}
-            {isTeacher && (
+            {/* Admin tabs */}
+            {isAdmin() && (
               <>
+                <button
+                  onClick={() => setActiveTab('assign')}
+                  className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                    activeTab === 'assign'
+                      ? `border-orange-500 text-orange-600`
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Assign to Lecturers
+                  </div>
+                </button>
+                
                 <button
                   onClick={() => setActiveTab('submissions')}
                   className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
@@ -129,7 +142,23 @@ const ExamFileManager = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    Student Submissions
+                    View All Submissions
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('approve')}
+                  className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                    activeTab === 'approve'
+                      ? `border-orange-500 text-orange-600`
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Approve Scores
                   </div>
                 </button>
                 
@@ -145,65 +174,44 @@ const ExamFileManager = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Reports
+                    Export Reports
                   </div>
                 </button>
               </>
             )}
             
-            {/* Student tabs */}
-            {!isTeacher && (
+            {/* Lecturer tabs */}
+            {isLecturer() && (
               <>
                 <button
-                  onClick={() => setActiveTab('upload')}
+                  onClick={() => setActiveTab('submissions')}
                   className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'upload'
+                    activeTab === 'submissions'
                       ? `border-orange-500 text-orange-600`
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    Upload Files
+                    Assigned Submissions
                   </div>
                 </button>
                 
                 <button
-                  onClick={() => setActiveTab('files')}
+                  onClick={() => setActiveTab('grade')}
                   className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'files'
+                    activeTab === 'grade'
                       ? `border-orange-500 text-orange-600`
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
-                    Files
-                    {extractedFiles.length > 0 && (
-                      <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">
-                        {extractedFiles.length}
-                      </span>
-                    )}
-                  </div>
-                </button>
-                
-                <button
-                  onClick={() => setActiveTab('grades')}
-                  className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'grades'
-                      ? `border-orange-500 text-orange-600`
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    Grades
+                    Grade Submissions
                   </div>
                 </button>
               </>
@@ -212,11 +220,66 @@ const ExamFileManager = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {activeTab === 'submissions' && isTeacher && (
+          {activeTab === 'submissions' && (isLecturer() || isAdmin()) && (
             <SubmissionsList courseId={courseId} />
           )}
         
-          {activeTab === 'upload' && !isTeacher && (
+          {/* Assign Tab for Admin */}
+          {activeTab === 'assign' && isAdmin() && (
+            <div className="p-12 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Assign Submissions to Lecturers</h3>
+              <p className="text-gray-600 mb-4">Feature to assign student submissions to lecturers for grading.</p>
+              <div className="text-sm text-gray-500">
+                <p>This feature allows you to assign submissions to one or more lecturers.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Approve Tab for Admin */}
+          {activeTab === 'approve' && isAdmin() && (
+            <div className="p-12 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Approve Scores</h3>
+              <p className="text-gray-600 mb-4">Review and approve student scores graded by lecturers.</p>
+              <div className="text-sm text-gray-500">
+                <p>View detailed grading by lecturers and approve final scores.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Grade Tab for Lecturer */}
+          {activeTab === 'grade' && isLecturer() && (
+            <div className="p-12 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Grade Student Assignments</h3>
+              <p className="text-gray-600 mb-4">View assigned submissions and grade them with detailed scores and notes.</p>
+              <div className="text-sm text-gray-500">
+                <p>Go to Assigned Submissions tab to view and grade work assigned to you.</p>
+              </div>
+              <button 
+                onClick={() => setActiveTab('submissions')}
+                className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              >
+                View Assigned Submissions
+              </button>
+            </div>
+          )}
+
+          {/* Old upload section - to be removed for non-guest users */}
+          {activeTab === 'upload' && (
             <div className="p-6">
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-2">
@@ -252,7 +315,7 @@ const ExamFileManager = () => {
             </div>
           )}
 
-          {activeTab === 'files' && !isTeacher && (
+          {activeTab === 'files' && (
             <div>
               {extractedFiles.length > 0 ? (
                 <FileViewer files={extractedFiles} />
@@ -276,7 +339,7 @@ const ExamFileManager = () => {
             </div>
           )}
 
-          {activeTab === 'grades' && !isTeacher && (
+          {activeTab === 'grades' && (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -288,8 +351,8 @@ const ExamFileManager = () => {
             </div>
           )}
           
-          {/* Grades Tab for Teachers */}
-          {activeTab === 'grades' && isTeacher && (
+          {/* Grades Tab for Lecturers */}
+          {activeTab === 'grades' && isLecturer() && (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -307,8 +370,8 @@ const ExamFileManager = () => {
             </div>
           )}
 
-          {/* Reports Tab for Teachers */}
-          {activeTab === 'reports' && isTeacher && (
+          {/* Reports Tab for Admin */}
+          {activeTab === 'reports' && isAdmin() && (
             <div className="p-12">
               <h2 className="text-xl font-bold text-gray-900 mb-6 text-center">Course Reports</h2>
               
@@ -416,8 +479,8 @@ const ExamFileManager = () => {
             </div>
           )}
           
-          {/* Reports Tab for Students (hidden) */}
-          {activeTab === 'reports' && !isTeacher && (
+          {/* Reports Tab for Lecturer */}
+          {activeTab === 'reports' && isLecturer() && (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

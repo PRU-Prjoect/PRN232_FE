@@ -1,11 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-const sampleUsers = [
-  { email: "student@fpt.edu.vn", password: "student123", role: "student", name: "Student User" },
-  { email: "teacher@fpt.edu.vn", password: "teacher123", role: "teacher", name: "Teacher User" },
-  { email: "admin@fpt.edu.vn", password: "admin123", role: "admin", name: "Admin User" }
-];
+import { useAuth } from "../../contexts/AuthContext";
+import { authService } from "../../services/index.js";
 
 const Login = () => {
   const [credentials, setCredentials] = useState({
@@ -13,7 +9,9 @@ const Login = () => {
     password: "",
   });
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { login: loginContext } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -23,7 +21,7 @@ const Login = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     
@@ -32,21 +30,21 @@ const Login = () => {
       return;
     }
     
-    const user = sampleUsers.find(
-      (user) => user.email === credentials.email && user.password === credentials.password
-    );
+    setIsLoading(true);
     
-    if (user) {
-      console.log("Logging in with:", user);
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("user", JSON.stringify({
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }));
-      navigate("/");
-    } else {
-      setError("Invalid email or password. Try one of the sample accounts shown below.");
+    try {
+      const result = await loginContext(credentials.email, credentials.password);
+      
+      if (result.success) {
+        navigate("/");
+      } else {
+        setError(result.error || "Invalid email or password");
+      }
+    } catch (error) {
+      setError("An error occurred during login. Please try again.");
+      console.error("Login error:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -172,9 +170,10 @@ const Login = () => {
             <div>
               <button
                 type="submit"
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                disabled={isLoading}
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Sign in
+                {isLoading ? 'Signing in...' : 'Sign in'}
               </button>
             </div>
             
@@ -191,27 +190,15 @@ const Login = () => {
             </div>
           </form>
           
-          {/* Sample credentials */}
+          {/* API Info */}
           <div className="mt-8 border-t border-gray-200 pt-6">
-            <h3 className="text-sm font-medium text-gray-900">Sample Login Credentials</h3>
+            <h3 className="text-sm font-medium text-gray-900">API Connection</h3>
             <div className="mt-4 bg-gray-50 rounded-md p-4 text-xs">
-              <div className="space-y-3">
-                <div>
-                  <p className="font-semibold">Student Account:</p>
-                  <p><span className="text-gray-500">Email:</span> student@fpt.edu.vn</p>
-                  <p><span className="text-gray-500">Password:</span> student123</p>
-                </div>
-                <div>
-                  <p className="font-semibold">Teacher Account:</p>
-                  <p><span className="text-gray-500">Email:</span> teacher@fpt.edu.vn</p>
-                  <p><span className="text-gray-500">Password:</span> teacher123</p>
-                </div>
-                <div>
-                  <p className="font-semibold">Admin Account:</p>
-                  <p><span className="text-gray-500">Email:</span> admin@fpt.edu.vn</p>
-                  <p><span className="text-gray-500">Password:</span> admin123</p>
-                </div>
-              </div>
+              <p className="text-gray-600">
+                {import.meta.env.VITE_API_URL ? 
+                  `Connected to: ${import.meta.env.VITE_API_URL}` : 
+                  'API URL not configured. Using default: https://localhost:7000/api'}
+              </p>
             </div>
           </div>
         </div>

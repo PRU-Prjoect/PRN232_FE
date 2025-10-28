@@ -49,8 +49,8 @@ const sampleSubmissions = [
     studentName: 'Hoang Van E',
     submissionDate: '2025-09-15T18:05:00',
     fileCount: 7,
-    status: 'late',
-    grade: null,
+    status: 'graded',
+    grade: 5,
     feedback: '',
   },
 ];
