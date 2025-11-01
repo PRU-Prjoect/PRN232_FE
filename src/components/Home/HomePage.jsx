@@ -233,12 +233,22 @@ const HomePage = () => {
                     </div>
                   </div>
                 )}
-                <a
-                  href="#courses"
-                  className="inline-block px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition"
-                >
-                  View Courses
-                </a>
+                <div className="space-y-3">
+                  <a
+                    href="#courses"
+                    className="inline-block px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition"
+                  >
+                    View Courses
+                  </a>
+                  {/* {isAdmin() && (
+                    <Link
+                      to="/assignments"
+                      className="inline-block px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg shadow-sm transition"
+                    >
+                      Assignment Manager
+                    </Link>
+                  )} */}
+                </div>
               </div>
             );
           })()}

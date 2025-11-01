@@ -3,65 +3,37 @@ import GradingModal from './GradingModal';
 import SubmissionViewer from './SubmissionViewer';
 
 const sampleSubmissions = [
-  {
-    id: 1,
-    studentId: 'SE160001',
-    studentName: 'Nguyen Van A',
-    submissionDate: '2025-09-15T14:30:00',
-    fileCount: 5,
-    status: 'graded',
-    grade: 8.5,
-    feedback: 'Good work on the implementation, but missing some documentation.',
-  },
-  {
-    id: 2,
-    studentId: 'SE160002',
-    studentName: 'Tran Thi B',
-    submissionDate: '2025-09-15T15:45:00',
-    fileCount: 4,
-    status: 'graded',
-    grade: 9.0,
-    feedback: 'Excellent work, very well documented.',
-  },
-  {
-    id: 3,
-    studentId: 'SE160003',
-    studentName: 'Le Van C',
-    submissionDate: '2025-09-15T16:20:00',
-    fileCount: 6,
-    status: 'submitted',
-    grade: null,
-    feedback: '',
-  },
-  {
-    id: 4,
-    studentId: 'SE160004',
-    studentName: 'Pham Thi D',
-    submissionDate: '2025-09-15T17:10:00',
-    fileCount: 3,
-    status: 'submitted',
-    grade: null,
-    feedback: '',
-  },
-  {
-    id: 5,
-    studentId: 'SE160005',
-    studentName: 'Hoang Van E',
-    submissionDate: '2025-09-15T18:05:00',
-    fileCount: 7,
-    status: 'graded',
-    grade: 5,
-    feedback: '',
-  },
 ];
 
-const SubmissionsList = ({ courseId }) => {
+const SubmissionsList = ({ courseId, importedSubmissions = [] }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [semesterFilter, setSemesterFilter] = useState('all');
+  const [courseCodeFilter, setCourseCodeFilter] = useState('all');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [isGradingModalOpen, setIsGradingModalOpen] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [submissions, setSubmissions] = useState(sampleSubmissions);
+  const [submissions, setSubmissions] = useState([...sampleSubmissions, ...importedSubmissions]);
+  const [availableSemesters, setAvailableSemesters] = useState([]);
+  const [availableCourseCodes, setAvailableCourseCodes] = useState([]);
+
+  React.useEffect(() => {
+    setSubmissions(prev => {
+      const nonImported = prev.filter(sub => !sub.id.toString().startsWith('imported_'));
+      return [...nonImported, ...importedSubmissions];
+    });
+    
+    const semesters = new Set();
+    const courseCodes = new Set();
+    
+    importedSubmissions.forEach(submission => {
+      if (submission.semester) semesters.add(submission.semester);
+      if (submission.courseCode) courseCodes.add(submission.courseCode);
+    });
+    
+    setAvailableSemesters(Array.from(semesters));
+    setAvailableCourseCodes(Array.from(courseCodes));
+  }, [importedSubmissions]);
 
   const filteredSubmissions = submissions.filter(submission => {
     const matchesSearch = 
@@ -70,8 +42,14 @@ const SubmissionsList = ({ courseId }) => {
     const matchesStatus = 
       statusFilter === 'all' || 
       submission.status === statusFilter;
+    const matchesSemester = 
+      semesterFilter === 'all' || 
+      submission.semester === semesterFilter;
+    const matchesCourseCode = 
+      courseCodeFilter === 'all' || 
+      submission.courseCode === courseCodeFilter;
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesSemester && matchesCourseCode;
   });
 
   const handleViewSubmission = (submission) => {
@@ -153,6 +131,30 @@ const SubmissionsList = ({ courseId }) => {
             <option value="late">Late</option>
           </select>
         </div>
+        <div className="w-full md:w-48">
+          <select
+            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            value={semesterFilter}
+            onChange={(e) => setSemesterFilter(e.target.value)}
+          >
+            <option value="all">All Semesters</option>
+            {availableSemesters.map(semester => (
+              <option key={semester} value={semester}>{semester}</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-full md:w-48">
+          <select
+            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            value={courseCodeFilter}
+            onChange={(e) => setCourseCodeFilter(e.target.value)}
+          >
+            <option value="all">All Course Codes</option>
+            {availableCourseCodes.map(courseCode => (
+              <option key={courseCode} value={courseCode}>{courseCode}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {filteredSubmissions.length > 0 ? (
@@ -168,6 +170,7 @@ const SubmissionsList = ({ courseId }) => {
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Files
+                  <div className="text-xs font-normal normal-case text-gray-400">Semester / Course Code</div>
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -183,47 +186,54 @@ const SubmissionsList = ({ courseId }) => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredSubmissions.map((submission) => (
                 <tr key={submission.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{submission.studentName}</div>
-                        <div className="text-sm text-gray-500">{submission.studentId}</div>
-                      </div>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{submission.studentName}</div>
+                      <div className="text-sm text-gray-500">{submission.studentId}</div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{formatDate(submission.submissionDate)}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{submission.fileCount} files</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(submission.status)}`}>
-                      {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {submission.grade !== null ? (
-                      <div className="text-sm text-gray-900">{submission.grade}/10</div>
-                    ) : (
-                      <div className="text-sm text-gray-500">Not graded</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleViewSubmission(submission)}
-                      className="text-orange-600 hover:text-orange-900 mr-4"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleGradeSubmission(submission)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      {submission.status === 'graded' ? 'Edit Grade' : 'Grade'}
-                    </button>
-                  </td>
-                </tr>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">{formatDate(submission.submissionDate)}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">
+                    {submission.fileCount || (submission.files ? submission.files.length : 1)} files
+                  </div>
+                  {submission.semester && submission.courseCode && (
+                    <div className="text-xs text-gray-500">
+                      <span className="font-medium">{submission.semester}</span> / <span className="font-medium">{submission.courseCode}</span>
+                    </div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(submission.status)}`}>
+                    {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {submission.grade !== null ? (
+                    <div className="text-sm text-gray-900">{submission.grade}/10</div>
+                  ) : (
+                    <div className="text-sm text-gray-500">Not graded</div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button
+                    onClick={() => handleViewSubmission(submission)}
+                    className="text-orange-600 hover:text-orange-900 mr-4"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleGradeSubmission(submission)}
+                    className="text-blue-600 hover:text-blue-900"
+                  >
+                    {submission.status === 'graded' ? 'Edit Grade' : 'Grade'}
+                  </button>
+                </td>
+              </tr>
               ))}
             </tbody>
           </table>

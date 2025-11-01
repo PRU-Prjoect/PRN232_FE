@@ -5,6 +5,7 @@ import Login from './components/Home/Login'
 import Register from './components/Home/Register'
 import GroupIntroduction from './pages/GroupIntroduction'
 import CourseOverview from './pages/CourseOverview'
+import AssignmentManager from './pages/AssignmentManager'
 import NotFound from './pages/NotFound'
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
           <Route path="/course/:courseId" element={<NotFound />} />
           <Route path="/about" element={<GroupIntroduction />} />
           <Route path="/courses" element={<CourseOverview />} />
+          <Route path="/assignments" element={<AssignmentManager />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>

@@ -1,118 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-// Sample file data for a submission
 const sampleSubmissionFiles = [
-  {
-    id: 1,
-    name: 'Main.java',
-    type: 'java',
-    size: 2048,
-    lastModified: '2025-09-15T14:25:30',
-    content: `public class Main {
-  public static void main(String[] args) {
-    System.out.println("Hello, World!");
-    
-    // Initialize the calculator
-    Calculator calc = new Calculator();
-    
-    // Test the calculator
-    System.out.println("5 + 3 = " + calc.add(5, 3));
-    System.out.println("5 - 3 = " + calc.subtract(5, 3));
-    System.out.println("5 * 3 = " + calc.multiply(5, 3));
-    System.out.println("5 / 3 = " + calc.divide(5, 3));
-  }
-}`
-  },
-  {
-    id: 2,
-    name: 'Calculator.java',
-    type: 'java',
-    size: 1024,
-    lastModified: '2025-09-15T14:20:15',
-    content: `public class Calculator {
-  public int add(int a, int b) {
-    return a + b;
-  }
-  
-  public int subtract(int a, int b) {
-    return a - b;
-  }
-  
-  public int multiply(int a, int b) {
-    return a * b;
-  }
-  
-  public double divide(int a, int b) {
-    if (b == 0) {
-      throw new ArithmeticException("Cannot divide by zero");
-    }
-    return (double) a / b;
-  }
-}`
-  },
-  {
-    id: 3,
-    name: 'README.txt',
-    type: 'text',
-    size: 512,
-    lastModified: '2025-09-15T14:10:45',
-    content: `Calculator Application
-======================
-
-This is a simple calculator application that demonstrates basic arithmetic operations.
-
-Features:
-- Addition
-- Subtraction
-- Multiplication
-- Division
-
-How to run:
-1. Compile: javac Main.java Calculator.java
-2. Run: java Main
-
-Author: Student Name (SE160001)
-Date: September 15, 2025`
-  },
-  {
-    id: 4,
-    name: 'output.txt',
-    type: 'text',
-    size: 256,
-    lastModified: '2025-09-15T14:28:10',
-    content: `Hello, World!
-5 + 3 = 8
-5 - 3 = 2
-5 * 3 = 15
-5 / 3 = 1.6666666666666667`
-  },
-  {
-    id: 5,
-    name: 'diagram.png',
-    type: 'image',
-    size: 15360,
-    lastModified: '2025-09-15T14:15:22',
-    content: '[Binary Image Data - Cannot Display]'
-  }
 ];
 
 const SubmissionViewer = ({ submission, onClose }) => {
-  const [selectedFile, setSelectedFile] = useState(sampleSubmissionFiles[0]);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [submissionFiles, setSubmissionFiles] = useState([]);
+  
+  useEffect(() => {
+    if (submission && submission.files) {
+      const files = submission.files.map((filePath, index) => {
+        const pathParts = filePath.split('/');
+        const fileName = pathParts.pop() || filePath;
+        const fileType = fileName.split('.').pop() || 'unknown';
+        
+        return {
+          id: `file_${index}`,
+          name: fileName,
+          path: filePath,
+          type: getFileType(fileType),
+          size: 0, 
+          lastModified: submission.submissionDate,
+          semester: pathParts[0] || '',
+          courseCode: pathParts[1] || ''
+        };
+      });
+      
+      setSubmissionFiles(files);
+      if (files.length > 0) {
+        setSelectedFile(files[0]);
+      }
+    }
+  }, [submission]);
+  
+  const getFileType = (extension) => {
+    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'];
+    const codeTypes = ['java', 'js', 'jsx', 'ts', 'tsx', 'html', 'css', 'c', 'cpp', 'cs', 'py', 'php'];
+    const docTypes = ['doc', 'docx', 'pdf', 'txt', 'rtf', 'md'];
+    
+    if (imageTypes.includes(extension.toLowerCase())) return 'image';
+    if (codeTypes.includes(extension.toLowerCase())) return 'code';
+    if (docTypes.includes(extension.toLowerCase())) return 'document';
+    return 'unknown';
+  };
 
-  const filteredFiles = sampleSubmissionFiles.filter(file => 
+  const filteredFiles = submissionFiles.filter(file => 
     file.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getFileIcon = (fileType) => {
     switch (fileType) {
-      case 'java':
+      case 'code':
         return (
           <svg className="h-6 w-6 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M2 14.5v-5c0-.55.45-1 1-1h18c.55 0 1 .45 1 1v5c0 .55-.45 1-1 1H3c-.55 0-1-.45-1-1zm17-4H5v3h14v-3z" />
+            <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
           </svg>
         );
-      case 'text':
+      case 'document':
         return (
           <svg className="h-6 w-6 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z" />
@@ -168,7 +113,6 @@ const SubmissionViewer = ({ submission, onClose }) => {
         </div>
 
         <div className="flex-1 flex overflow-hidden">
-          {/* File list sidebar */}
           <div className="w-1/3 border-r border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <div className="relative">
@@ -191,7 +135,7 @@ const SubmissionViewer = ({ submission, onClose }) => {
                 {filteredFiles.map((file) => (
                   <li 
                     key={file.id}
-                    className={`hover:bg-gray-50 cursor-pointer ${selectedFile.id === file.id ? 'bg-orange-50' : ''}`}
+                    className={`hover:bg-gray-50 cursor-pointer ${selectedFile && selectedFile.id === file.id ? 'bg-orange-50' : ''}`}
                     onClick={() => setSelectedFile(file)}
                   >
                     <div className="px-4 py-3 flex items-center">
@@ -205,6 +149,11 @@ const SubmissionViewer = ({ submission, onClose }) => {
                         <p className="text-xs text-gray-500">
                           {formatFileSize(file.size)} • {formatDate(file.lastModified)}
                         </p>
+                        {file.semester && file.courseCode && (
+                          <p className="text-xs text-orange-600 mt-1">
+                            <span className="font-medium">{file.semester}</span> / <span className="font-medium">{file.courseCode}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
                   </li>
@@ -212,40 +161,56 @@ const SubmissionViewer = ({ submission, onClose }) => {
               </ul>
             </div>
           </div>
-
-          {/* File content */}
           <div className="flex-1 flex flex-col">
             <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
               <div className="flex items-center">
-                {getFileIcon(selectedFile.type)}
-                <span className="ml-2 font-medium">{selectedFile.name}</span>
+                {selectedFile && getFileIcon(selectedFile.type)}
+                <div className="ml-2">
+                  <span className="font-medium">{selectedFile?.name}</span>
+                  {selectedFile?.semester && selectedFile?.courseCode && (
+                    <div className="text-xs text-orange-600 mt-1">
+                      <span className="font-medium">{selectedFile.semester}</span> / <span className="font-medium">{selectedFile.courseCode}</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <button 
                   className="px-3 py-1.5 bg-orange-500 text-white rounded-md text-sm hover:bg-orange-600 transition"
                   onClick={() => {
-                    // In a real app, this would download the file
-                    console.log(`Downloading file: ${selectedFile.name}`);
-                    alert(`In a real app, this would download ${selectedFile.name}`);
+                    if (selectedFile) {
+                      console.log(`Viewing file info: ${selectedFile.path}`);
+                      alert(`Thông tin file: ${selectedFile.path}\nKỳ học: ${selectedFile.semester || 'N/A'}\nMã môn: ${selectedFile.courseCode || 'N/A'}`);
+                    }
                   }}
+                  disabled={!selectedFile}
                 >
-                  Download
+                  Xem thông tin
                 </button>
               </div>
             </div>
             <div className="flex-1 overflow-auto p-4 bg-gray-100">
-              {selectedFile.type === 'image' ? (
+              {!selectedFile ? (
+                <div className="flex items-center justify-center h-full bg-white rounded-md p-4">
+                  <div className="text-center">
+                    <svg className="h-16 w-16 text-gray-400 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z" />
+                    </svg>
+                    <p className="mt-2 text-gray-500">Select a file to view its content.</p>
+                  </div>
+                </div>
+              ) : selectedFile.type === 'image' ? (
                 <div className="flex items-center justify-center h-full bg-white rounded-md p-4">
                   <div className="text-center">
                     <svg className="h-16 w-16 text-gray-400 mx-auto" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
                     </svg>
-                    <p className="mt-2 text-gray-500">Preview not available. Click download to view the image.</p>
+                    <p className="mt-2 text-gray-500">Xem trước không khả dụng. Nhấn "Xem thông tin" để xem chi tiết.</p>
                   </div>
                 </div>
               ) : (
                 <pre className="bg-white rounded-md p-4 overflow-auto h-full text-sm font-mono text-gray-800 whitespace-pre-wrap">
-                  {selectedFile.content}
+                  {selectedFile.content || `Nội dung file không khả dụng. Nhấn "Xem thông tin" để xem chi tiết.`}
                 </pre>
               )}
             </div>

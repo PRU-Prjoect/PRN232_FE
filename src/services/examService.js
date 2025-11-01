@@ -1,48 +1,240 @@
 import api from './api';
 
 export const examService = {
-  // Get all exams
-  getExams: async () => {
-    const response = await api.get('/exams');
+  // Get all exams with pagination and search
+  // GET /api/exam?page=1&pageSize=10&search=...
+  getExams: async (params = {}) => {
+    const { page = 1, pageSize = 10, search = '' } = params;
+    const queryParams = new URLSearchParams();
+    if (page) queryParams.append('page', page);
+    if (pageSize) queryParams.append('pageSize', pageSize);
+    if (search) queryParams.append('search', search);
+    
+    const queryString = queryParams.toString();
+    const url = queryString ? `/exam?${queryString}` : '/exam';
+    const response = await api.get(url);
     return response.data;
   },
 
   // Get exam by ID
   getExamById: async (examId) => {
-    const response = await api.get(`/exams/${examId}`);
+    const response = await api.get(`/exam/${examId}`);
     return response.data;
   },
 
-  // Create exam
+  // Create exam - POST /api/exam
   createExam: async (examData) => {
-    const response = await api.post('/exams', examData);
+    const response = await api.post('/exam', examData);
     return response.data;
   },
 
-  // Update exam
+  // Update exam - PUT /api/exam/{id}
   updateExam: async (examId, examData) => {
-    const response = await api.put(`/exams/${examId}`, examData);
+    const response = await api.put(`/exam/${examId}`, examData);
     return response.data;
   },
 
-  // Delete exam
+  // Delete exam - DELETE /api/exam/{id}
   deleteExam: async (examId) => {
-    const response = await api.delete(`/exams/${examId}`);
+    const response = await api.delete(`/exam/${examId}`);
     return response.data;
   },
 
   // Get exam statistics
   getExamStatistics: async (examId) => {
-    const response = await api.get(`/exams/${examId}/statistics`);
+    const response = await api.get(`/exam/${examId}/statistics`);
     return response.data;
   },
 
   // Export grade sheet
   exportGradeSheet: async (examId) => {
-    const response = await api.get(`/exams/${examId}/export`, {
+    const response = await api.get(`/exam/${examId}/export`, {
       responseType: 'blob',
     });
     return response.data;
+  },
+
+  // Export ZIP with exam ID
+  exportZip: async (examId) => {
+    const response = await api.get(`/exam/${examId}/export-zip`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // Import ZIP for exam - POST /api/exam/{id}/import-zip
+  importZip: async (examId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Use direct fetch for multipart/form-data
+    const token = localStorage.getItem('token');
+    const API_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://localhost:7244/api');
+    
+    const response = await fetch(`${API_URL}/exam/${examId}/import-zip`, {
+      method: 'POST',
+      mode: 'cors',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // Don't set Content-Type for FormData, browser will set it with boundary
+      },
+      body: formData,
+    });
+    
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isLoggedIn');
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error! status: ${response.status}`);
+    }
+    
+    // Response is JSON with jobId and other info
+    const data = await response.json();
+    return data;
+  },
+
+  // Get import status for exam - GET /api/exam/{examId}/import-status
+  getImportStatus: async (examId) => {
+    const response = await api.get(`/exam/${examId}/import-status`);
+    return response.data;
+  },
+
+  // Get import zip status - GET /api/exam/{id}/import-zip/status/{jobId}
+  getImportZipStatus: async (examId, jobId) => {
+    const response = await api.get(`/exam/${examId}/import-zip/status/${jobId}`);
+    return response.data;
+  },
+
+  // Get submissions by exam ID
+  getSubmissionsByExam: async (examId) => {
+    const response = await api.get(`/exam/${examId}/submissions`);
+    return response.data;
+  },
+
+  // Get exam statistics and exported info
+  getExamExportedInfo: async (examId) => {
+    const response = await api.get(`/exam/${examId}/exported-info`);
+    return response.data;
+  },
+
+  // Download exam paper - GET /api/exam/{id}/exam-paper
+  downloadExamPaper: async (examId) => {
+    const token = localStorage.getItem('token');
+    const API_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://localhost:7244/api');
+    
+    const response = await fetch(`${API_URL}/exam/${examId}/exam-paper`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'include',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+    
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isLoggedIn');
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error! status: ${response.status}`);
+    }
+    
+    // Get blob from response
+    const blob = await response.blob();
+    
+    // Extract filename from Content-Disposition header
+    const contentDisposition = response.headers.get('content-disposition');
+    let filename = null;
+    if (contentDisposition) {
+      // First try to get UTF-8 encoded filename (filename*=UTF-8''...)
+      const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (utf8Match) {
+        try {
+          filename = decodeURIComponent(utf8Match[1]);
+        } catch (e) {
+          // If decode fails, fall back to regular filename
+        }
+      }
+      
+      // If no UTF-8 filename, try regular filename
+      if (!filename) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '').trim();
+        }
+      }
+    }
+    
+    return { blob, filename };
+  },
+
+  // Download marking sheet - GET /api/exam/{id}/marking-sheet
+  downloadMarkingSheet: async (examId) => {
+    const token = localStorage.getItem('token');
+    const API_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://localhost:7244/api');
+    
+    const response = await fetch(`${API_URL}/exam/${examId}/marking-sheet`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'include',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+    
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isLoggedIn');
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `HTTP error! status: ${response.status}`);
+    }
+    
+    // Get blob from response
+    const blob = await response.blob();
+    
+    // Extract filename from Content-Disposition header
+    const contentDisposition = response.headers.get('content-disposition');
+    let filename = null;
+    if (contentDisposition) {
+      // First try to get UTF-8 encoded filename (filename*=UTF-8''...)
+      const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (utf8Match) {
+        try {
+          filename = decodeURIComponent(utf8Match[1]);
+        } catch (e) {
+          // If decode fails, fall back to regular filename
+        }
+      }
+      
+      // If no UTF-8 filename, try regular filename
+      if (!filename) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '').trim();
+        }
+      }
+    }
+    
+    return { blob, filename };
   },
 };
 

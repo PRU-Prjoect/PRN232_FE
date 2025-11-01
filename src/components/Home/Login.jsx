@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { authService } from "../../services/index.js";
@@ -10,8 +10,20 @@ const Login = () => {
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
   const { login: loginContext } = useAuth();
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("rememberedEmail");
+    if (savedEmail) {
+      setCredentials((prev) => ({
+        ...prev,
+        email: savedEmail,
+      }));
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -19,6 +31,15 @@ const Login = () => {
       ...credentials,
       [name]: value,
     });
+  };
+
+  const handleRememberMeChange = (e) => {
+    const isChecked = e.target.checked;
+    setRememberMe(isChecked);
+    
+    if (!isChecked) {
+      localStorage.removeItem("rememberedEmail");
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -36,6 +57,12 @@ const Login = () => {
       const result = await loginContext(credentials.email, credentials.password);
       
       if (result.success) {
+        if (rememberMe) {
+          localStorage.setItem("rememberedEmail", credentials.email);
+        } else {
+          localStorage.removeItem("rememberedEmail");
+        }
+        
         navigate("/");
       } else {
         setError(result.error || "Invalid email or password");
@@ -147,6 +174,8 @@ const Login = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
+                  checked={rememberMe}
+                  onChange={handleRememberMeChange}
                   className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                 />
                 <label
@@ -189,18 +218,6 @@ const Login = () => {
               </p>
             </div>
           </form>
-          
-          {/* API Info */}
-          <div className="mt-8 border-t border-gray-200 pt-6">
-            <h3 className="text-sm font-medium text-gray-900">API Connection</h3>
-            <div className="mt-4 bg-gray-50 rounded-md p-4 text-xs">
-              <p className="text-gray-600">
-                {import.meta.env.VITE_API_URL ? 
-                  `Connected to: ${import.meta.env.VITE_API_URL}` : 
-                  'API URL not configured. Using default: https://localhost:7000/api'}
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 

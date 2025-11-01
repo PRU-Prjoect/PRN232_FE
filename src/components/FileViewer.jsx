@@ -40,13 +40,24 @@ const FileViewer = ({ files }) => {
   };
 
   const handleDownload = (file) => {
-    saveAs(file.content, file.name.split('/').pop());
+    const fileName = file.name.split('/').pop();
+    const fileSize = formatFileSize(file.content ? file.content.size : 0);
+    const fileType = fileName.split('.').pop().toLowerCase();
+    
+    alert(`Thông tin file:\nTên: ${fileName}\nKích thước: ${fileSize}\nLoại file: ${fileType}`);
+    console.log('File info:', { name: fileName, size: fileSize, type: fileType });
   };
 
   const handleDownloadAll = () => {
-    files.forEach(file => {
-      saveAs(file.content, file.name.split('/').pop());
-    });
+    const fileCount = files.length;
+    const totalSize = formatFileSize(files.reduce((total, file) => total + (file.content ? file.content.size : 0), 0));
+    
+    alert(`Thông tin tất cả các file:\nSố lượng: ${fileCount} file\nTổng kích thước: ${totalSize}`);
+    console.log('All files info:', files.map(file => ({
+      name: file.name.split('/').pop(),
+      size: formatFileSize(file.content ? file.content.size : 0),
+      type: file.name.split('.').pop().toLowerCase()
+    })));
   };
 
   const formatFileSize = (bytes) => {
@@ -139,11 +150,14 @@ const FileViewer = ({ files }) => {
             <p className="text-sm text-gray-500 mt-2">
               {formatFileSize(selectedFile.size)}
             </p>
+            <p className="text-gray-500 text-sm mt-2">
+              Xem trước không khả dụng. Nhấn "Xem thông tin file" để xem chi tiết.
+            </p>
             <button
-              onClick={() => handleDownload(selectedFile)}
-              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-            >
-              Download File
+                onClick={() => handleDownload(selectedFile)}
+                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+              >
+                Xem thông tin file
             </button>
           </div>
         );
@@ -163,7 +177,7 @@ const FileViewer = ({ files }) => {
             onClick={handleDownloadAll}
             className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
           >
-            Download All
+            Xem thông tin tất cả file
           </button>
         </div>
         <div className="mt-2">
@@ -214,10 +228,10 @@ const FileViewer = ({ files }) => {
                             handleDownload(file);
                           }}
                           className="ml-2 p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                          title="Download"
+                          title="Xem thông tin"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </button>
                       </li>
