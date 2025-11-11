@@ -1,14 +1,26 @@
 import api from './api';
 
 export const examService = {
-  // Get all exams with pagination and search
-  // GET /api/exam?page=1&pageSize=10&search=...
+
   getExams: async (params = {}) => {
-    const { page = 1, pageSize = 10, search = '' } = params;
+    const { 
+      pageIndex = 1, 
+      pageSize = 10, 
+      searchTerm = '', 
+      subjectCode = '', 
+      semester = '', 
+      academicYear = '', 
+      isActive = null 
+    } = params;
+    
     const queryParams = new URLSearchParams();
-    if (page) queryParams.append('page', page);
+    if (pageIndex) queryParams.append('pageIndex', pageIndex);
     if (pageSize) queryParams.append('pageSize', pageSize);
-    if (search) queryParams.append('search', search);
+    if (searchTerm) queryParams.append('searchTerm', searchTerm);
+    if (subjectCode) queryParams.append('subjectCode', subjectCode);
+    if (semester) queryParams.append('semester', semester);
+    if (academicYear) queryParams.append('academicYear', academicYear);
+    if (isActive !== null && isActive !== undefined) queryParams.append('isActive', isActive);
     
     const queryString = queryParams.toString();
     const url = queryString ? `/exam?${queryString}` : '/exam';
@@ -66,8 +78,6 @@ export const examService = {
   importZip: async (examId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    // Use direct fetch for multipart/form-data
     const token = localStorage.getItem('token');
     const API_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://localhost:7244/api');
     
@@ -78,7 +88,6 @@ export const examService = {
       headers: {
         'Accept': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
-        // Don't set Content-Type for FormData, browser will set it with boundary
       },
       body: formData,
     });
@@ -95,8 +104,6 @@ export const examService = {
       const errorText = await response.text();
       throw new Error(errorText || `HTTP error! status: ${response.status}`);
     }
-    
-    // Response is JSON with jobId and other info
     const data = await response.json();
     return data;
   },

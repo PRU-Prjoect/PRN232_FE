@@ -70,7 +70,26 @@ const api = {
     const text = await response.text();
     
     if (!response.ok) {
-      throw new Error(text || `HTTP error! status: ${response.status}`);
+      // Try to parse error JSON response
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorJson = JSON.parse(text);
+          if (errorJson.error?.details) {
+            const error = new Error(errorJson.error.details);
+            error.response = { data: errorJson, status: response.status };
+            throw error;
+          } else if (errorJson.error?.title) {
+            const error = new Error(errorJson.error.title);
+            error.response = { data: errorJson, status: response.status };
+            throw error;
+          }
+        } catch (e) {
+          // If parsing fails, use original text
+        }
+      }
+      const error = new Error(text || `HTTP error! status: ${response.status}`);
+      error.response = { status: response.status };
+      throw error;
     }
     
     if (!text || text.trim() === '') {

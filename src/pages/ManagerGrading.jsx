@@ -12,20 +12,20 @@ const AssignmentManager = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [selectedLecturers, setSelectedLecturers] = useState([]); // Array of lecturer IDs
+  const [selectedLecturers, setSelectedLecturers] = useState([]); 
   const [selectedSubmissions, setSelectedSubmissions] = useState([]);
   const [selectedExams, setSelectedExams] = useState([]);
-  const [expandedExams, setExpandedExams] = useState({}); // Track which exams have expanded dropdowns
-  const [examSolutions, setExamSolutions] = useState({}); // Store solutions for each exam
-  const [loadingSolutions, setLoadingSolutions] = useState({}); // Track loading state for each exam
-  const [selectedSolutions, setSelectedSolutions] = useState({}); // Store selected solutions by examId: { [examId]: [solutionId1, ...] }
+  const [expandedExams, setExpandedExams] = useState({}); 
+  const [examSolutions, setExamSolutions] = useState({}); 
+  const [loadingSolutions, setLoadingSolutions] = useState({}); 
+  const [selectedSolutions, setSelectedSolutions] = useState({}); 
 
   useEffect(() => {
     if (!isLoggedIn) {
       window.location.href = '/login';
       return;
     }
-
+    
     loadData();
   }, [isLoggedIn]);
 
@@ -36,13 +36,10 @@ const AssignmentManager = () => {
       const lecturerData = await lecturerService.getLecturers({ pageIndex: 1, pageSize: 100 });
       const lecturerItems = lecturerData?.data?.items || lecturerData?.items || [];
       setLecturers(lecturerItems);
-      const examData = await examService.getExams({
-        pageIndex: 1,
-        pageSize: 100
+      const examData = await examService.getExams({ 
+        pageIndex: 1, 
+        pageSize: 100 
       });
-      // API response structure: { items: [...], totalItems, pageNumber, pageSize, totalPages }
-      // Or: { success: true, data: { items: [...] } }
-      // Or: Array directly
       console.log('Exam API Response:', examData);
       let examItems = [];
       if (Array.isArray(examData)) {
@@ -82,8 +79,9 @@ const AssignmentManager = () => {
   const handleLecturerChange = (index, lecturerId) => {
     setSelectedLecturers(prev => {
       const newLecturers = [...prev];
-
+      
       if (lecturerId === '') {
+        // Deselecting - remove this lecturer
         newLecturers.splice(index, 1);
       } else {
         // Selecting a lecturer
@@ -95,7 +93,7 @@ const AssignmentManager = () => {
           newLecturers.push(lecturerId);
         }
       }
-
+      
       return newLecturers;
     });
   };
@@ -109,13 +107,15 @@ const AssignmentManager = () => {
   };
 
   const handleAssign = async () => {
+    // Validate: cần chọn giảng viên và (kỳ thi hoặc solution)
     if (selectedLecturers.length === 0) {
       setError('Vui lòng chọn ít nhất một giảng viên');
       return;
     }
-    const totalSelectedSolutions = Object.values(selectedSolutions).flat();
-    if (selectedExams.length === 0 && totalSelectedSolutions.length === 0) {
-      setError('Vui lòng chọn ít nhất một kỳ thi hoặc một solution');
+
+    // Kiểm tra nếu chọn kỳ thi
+    if (selectedExams.length === 0) {
+      setError('Vui lòng chọn ít nhất một kỳ thi');
       return;
     }
 
@@ -123,90 +123,128 @@ const AssignmentManager = () => {
       setLoading(true);
       setError('');
       setSuccessMessage('');
-
-      // 🧠 Nếu người dùng chọn solution cụ thể → gọi API assignSolution
-      if (totalSelectedSolutions.length > 0) {
-        console.log('📤 Gọi API đơn theo solution...');
-
-        for (const examId in selectedSolutions) {
-          const solutions = selectedSolutions[examId];
-          for (const solutionId of solutions) {
-            for (const lecturerId of selectedLecturers) {
-              console.log('➡️ Gọi API assignSolution:', { examId, solutionId, lecturerId });
-              try {
-                const res = await assignmentService.assignSolution(solutionId, lecturerId, examId);
-                console.log('✅ assignSolution thành công:', res);
-              } catch (err) {
-                console.error('❌ assignSolution lỗi:', err);
-                setError(err?.message || 'Lỗi khi phân công solution đơn.');
-              }
-            }
+      
+      console.log('Selected exams:', selectedExams);
+      console.log('Selected lecturers:', selectedLecturers);
+      
+      // Gọi API cho mỗi kỳ thi được chọn
+      const promises = selectedExams.map(async (examId) => {
+        try {
+          // Tìm exam để lấy thông tin đầy đủ
+          const exam = exams.find(e => (e.id || e.examId) === examId);
+          console.log(`Assigning exam ${examId}:`, exam);
+          console.log(`Request payload:`, { examId, lecturerIds: selectedLecturers });
+          
+          const response = await assignmentService.assignExam(examId, selectedLecturers);
+          console.log(`Assignment successful for exam ${examId}:`, response);
+          return { examId, success: true, data: response };
+        } catch (err) {
+          console.error(`Failed to assign exam ${examId}:`, err);
+          // Extract error message from response
+          let errorMessage = 'Failed to assign';
+          if (err?.message) {
+            errorMessage = err.message;
+          } else if (err?.response?.data?.error?.details) {
+            errorMessage = err.response.data.error.details;
+          } else if (err?.response?.data?.error?.title) {
+            errorMessage = err.response.data.error.title;
           }
+          return { examId, success: false, error: errorMessage };
         }
+      });
 
-        setSuccessMessage('✅ Phân công solution thành công!');
-        setSelectedSolutions({});
-        setSelectedLecturers([]);
-        await loadData();
-        return;
+      const results = await Promise.all(promises);
+      
+      // Kiểm tra kết quả
+      const failedResults = results.filter(r => !r.success);
+      const successResults = results.filter(r => r.success);
+      
+      if (failedResults.length > 0) {
+        const errorMessages = failedResults.map(r => {
+          const exam = exams.find(e => (e.id || e.examId) === r.examId);
+          return `Kỳ thi "${exam?.name || r.examId}": ${r.error}`;
+        }).join('\n');
+        setError(`Một số phân công thất bại:\n${errorMessages}`);
       }
 
-      if (selectedExams.length > 0) {
-        console.log('📤 Gọi API theo kỳ thi...');
-        const promises = selectedExams.map(async (examId) => {
-          try {
-            const response = await assignmentService.assignExam(examId, selectedLecturers);
-            console.log(`✅ Assignment successful for exam ${examId}:`, response);
-            return { examId, success: true, data: response };
-          } catch (err) {
-            console.error(`❌ Failed to assign exam ${examId}:`, err);
-            const errorMessage = err?.message || err?.response?.data?.error?.details || 'Failed to assign';
-            return { examId, success: false, error: errorMessage };
-          }
+      // Chỉ thêm assignments cho những kỳ thi thành công
+      if (successResults.length > 0) {
+        const newAssignments = [];
+        const assignmentDetails = [];
+        
+        successResults.forEach(result => {
+          const examId = result.examId;
+          const exam = exams.find(e => (e.id || e.examId) === examId);
+          const assignedLecturers = [];
+          
+          selectedLecturers.forEach(lecturerId => {
+            const lecturer = lecturers.find(l => l.id === lecturerId);
+            const lecturerName = lecturer?.fullName || lecturer?.name || 'Unknown';
+            assignedLecturers.push(lecturerName);
+            
+            newAssignments.push({
+              id: `${examId}-${lecturerId}-${Date.now()}`,
+              examId: examId,
+              examName: exam?.name || 'N/A',
+              lecturerId: lecturerId,
+              lecturerName: lecturerName,
+              status: 'assigned'
+            });
+          });
+          
+          // Lấy thông tin về số bài làm từ response nếu có
+          const submissionCount = result.data?.submissionCount || result.data?.assignedSubmissions?.length || 'N/A';
+          assignmentDetails.push({
+            examName: exam?.name || examId,
+            subjectCode: exam?.subjectCode || '',
+            lecturers: assignedLecturers,
+            submissionCount: submissionCount
+          });
         });
-
-        const results = await Promise.all(promises);
-        const failed = results.filter(r => !r.success);
-        const succeeded = results.filter(r => r.success);
-
-        if (failed.length > 0) {
-          const errMsg = failed.map(r => `Kỳ thi "${r.examId}": ${r.error}`).join('\n');
-          setError(`Một số phân công thất bại:\n${errMsg}`);
-        }
-
-        if (succeeded.length > 0) {
-          const msg = succeeded.map(r => {
-            const exam = exams.find(e => (e.id || e.examId) === r.examId);
-            const examName = exam?.name || exam?.examName || r.examId;
-            const assignedLecturers = selectedLecturers
-              .map(id => lecturers.find(l => l.id === id)?.fullName || 'N/A')
-              .join(', ');
-            return `✅ Kỳ thi "${examName}" - Năm: "${exam.academicYear}" - Môn: "${exam.subjectCode}  - Giảng viên: ${assignedLecturers}`;
-          }).join('\n');
-
-          setSuccessMessage(`Phân công thành công:\n${msg}`);
-        }
-
-
-        if (failed.length === 0) {
-          setSelectedLecturers([]);
-          setSelectedExams([]);
-          setSelectedSolutions({});
-          await loadData();
-        }
+        
+        setAssignments(prev => [...prev, ...newAssignments]);
+        
+        // Tạo thông báo thành công chi tiết
+        const successMessages = assignmentDetails.map(detail => {
+          const lecturersList = detail.lecturers.join(', ');
+          const submissionInfo = detail.submissionCount !== 'N/A' 
+            ? ` (${detail.submissionCount} bài làm)` 
+            : '';
+          const examDisplayName = detail.subjectCode 
+            ? `${detail.examName} (${detail.subjectCode})`
+            : detail.examName;
+          return `• Kỳ thi "${examDisplayName}": ${lecturersList}${submissionInfo}`;
+        });
+        
+        setSuccessMessage(`Phân công thành công!\n\n${successMessages.join('\n')}`);
       }
+
+      // Reset selections nếu tất cả đều thành công
+      if (failedResults.length === 0) {
+        setSelectedLecturers([]);
+        setSelectedExams([]);
+        setSelectedSolutions({});
+        
+        // Reload data để lấy assignments mới nhất từ server
+        await loadData();
+      }
+      
     } catch (err) {
-      console.error('❌ Error assigning:', err);
-      setError(err?.message || 'Lỗi khi phân công.');
+      console.error('Error assigning:', err);
+      let errorMessage = 'Failed to assign exams';
+      if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.response?.data?.error?.details) {
+        errorMessage = err.response.data.error.details;
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-
-
   const handleSubmissionSelect = (submissionId) => {
-    setSelectedSubmissions(prev =>
+    setSelectedSubmissions(prev => 
       prev.includes(submissionId)
         ? prev.filter(id => id !== submissionId)
         : [...prev, submissionId]
@@ -214,7 +252,7 @@ const AssignmentManager = () => {
   };
 
   const handleExamSelect = (examId) => {
-    setSelectedExams(prev =>
+    setSelectedExams(prev => 
       prev.includes(examId)
         ? prev.filter(id => id !== examId)
         : [...prev, examId]
@@ -243,7 +281,7 @@ const AssignmentManager = () => {
         } else if (response?.items && Array.isArray(response.items)) {
           solutions = response.items;
         }
-
+        
         setExamSolutions(prev => ({
           ...prev,
           [examId]: solutions
@@ -277,7 +315,7 @@ const AssignmentManager = () => {
     const solutions = examSolutions[examId] || [];
     const currentSelected = selectedSolutions[examId] || [];
     const allSelected = solutions.length > 0 && currentSelected.length === solutions.length;
-
+    
     setSelectedSolutions(prev => ({
       ...prev,
       [examId]: allSelected
@@ -318,8 +356,8 @@ const AssignmentManager = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <Link
-                to="/"
+              <Link 
+                to="/" 
                 className="mr-4 p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                 title="Back to Home"
               >
@@ -378,7 +416,7 @@ const AssignmentManager = () => {
         {/* Phân công bài tập */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Phân công bài tập</h2>
-
+          
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Chọn giảng viên</label>
             <div className="space-y-3">
@@ -433,7 +471,7 @@ const AssignmentManager = () => {
               })}
             </div>
           </div>
-
+          
           <div className="flex items-center justify-between mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -450,11 +488,7 @@ const AssignmentManager = () => {
             </div>
             <button
               onClick={handleAssign}
-              disabled={
-                selectedLecturers.length === 0 ||
-                (selectedExams.length === 0 && Object.values(selectedSolutions).flat().length === 0) ||
-                loading
-              }
+              disabled={selectedLecturers.length === 0 || selectedExams.length === 0 || loading}
               className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Đang phân công...' : 'Phân công'}
@@ -534,10 +568,11 @@ const AssignmentManager = () => {
                             {exam.examDate ? new Date(exam.examDate).toLocaleDateString('vi-VN') : 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${exam.isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                              }`}>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              exam.isActive 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
                               {exam.isActive ? 'Active' : 'No Active'}
                             </span>
                           </td>
@@ -615,7 +650,7 @@ const AssignmentManager = () => {
                                                 </div>
                                               </td>
                                               <td className="px-4 py-2 text-sm text-gray-900">
-                                                {solution.createdAt
+                                                {solution.createdAt 
                                                   ? new Date(solution.createdAt).toLocaleDateString('vi-VN')
                                                   : 'N/A'}
                                               </td>
@@ -719,4 +754,4 @@ const AssignmentManager = () => {
   );
 };
 
-export default AssignmentManager;
+export default ManagerGrading;

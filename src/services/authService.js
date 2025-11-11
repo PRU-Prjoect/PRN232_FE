@@ -9,10 +9,11 @@ export const authService = {
     // Decode JWT để lấy user info
     if (accessToken) {
       const payload = JSON.parse(atob(accessToken.split('.')[1]));
+      const roleClaim = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
       const user = {
         id: payload.sub,
         email: email,
-        role: payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || 'lecturer'
+        ...(roleClaim && { role: roleClaim })
       };
       return { token: accessToken, user };
     }

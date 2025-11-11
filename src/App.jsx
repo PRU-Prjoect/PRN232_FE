@@ -1,11 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import HomePage from './components/Home/HomePage'
-import ExamFileManager from './components/ExamFileManager'
+import ExamFileManager from './components/Lecturer/ExamFileManager'
 import Login from './components/Home/Login'
 import Register from './components/Home/Register'
 import GroupIntroduction from './pages/GroupIntroduction'
 import CourseOverview from './pages/CourseOverview'
 import AssignmentManager from './pages/AssignmentManager'
+import AssignmentList from './pages/AssignmentList'
 import NotFound from './pages/NotFound'
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
           <Route path="/about" element={<GroupIntroduction />} />
           <Route path="/courses" element={<CourseOverview />} />
           <Route path="/assignments" element={<AssignmentManager />} />
+          <Route path="/assignments/list" element={<AssignmentList />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>

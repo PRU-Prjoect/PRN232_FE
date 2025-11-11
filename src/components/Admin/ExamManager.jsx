@@ -88,6 +88,7 @@ const ExamManager = () => {
       setError('');
       const payload = {
         ...formData,
+        subjectCode: 'SWD392',
         examDate: new Date(formData.examDate).toISOString(),
         isActive: Boolean(formData.isActive)
       };
@@ -95,7 +96,7 @@ const ExamManager = () => {
       setShowCreateModal(false);
       setFormData({
         name: '',
-        subjectCode: '',
+        subjectCode: 'SWD392',
         semester: '',
         academicYear: '',
         examDate: '',
@@ -118,6 +119,7 @@ const ExamManager = () => {
       setError('');
       const payload = {
         ...formData,
+        subjectCode: 'SWD392',
         examDate: new Date(formData.examDate).toISOString(),
         isActive: Boolean(formData.isActive)
       };
@@ -217,7 +219,7 @@ const ExamManager = () => {
       : '';
     setFormData({
       name: exam.name || '',
-      subjectCode: exam.subjectCode || '',
+      subjectCode: 'SWD392',
       semester: exam.semester || '',
       academicYear: exam.academicYear || '',
       examDate: examDateValue,
@@ -288,7 +290,7 @@ const ExamManager = () => {
       setImportFile(null);
       setSelectedExamForImport(null);
       const message = result.jobId 
-        ? `Import thành công! Job ID: ${result.jobId}\nExam ID: ${selectedExamForImport.id}\nHọc sinh đã import: ${result.numStudentsImported || 0}\nGiải pháp đã import: ${result.numSolutionsImported || 0}`
+        ? `Import thành công! Job ID: ${result.jobId}\nExam ID: ${selectedExamForImport.id}`
         : `Import thành công! Exam ID: ${selectedExamForImport.id}`;
       alert(message);
       loadExams();
@@ -461,7 +463,17 @@ const ExamManager = () => {
           <p className="text-sm text-gray-600 mt-1">Tạo, xem, cập nhật và xóa kỳ thi</p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => {
+            setFormData({
+              name: '',
+              subjectCode: 'SWD392',
+              semester: '',
+              academicYear: '',
+              examDate: '',
+              isActive: true
+            });
+            setShowCreateModal(true);
+          }}
           className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -670,7 +682,7 @@ const ExamManager = () => {
                     setShowCreateModal(false);
                     setFormData({
                       name: '',
-                      subjectCode: '',
+                      subjectCode: 'SWD392',
                       semester: '',
                       academicYear: '',
                       examDate: '',
@@ -706,9 +718,9 @@ const ExamManager = () => {
                       <input
                         type="text"
                         required
-                        value={formData.subjectCode}
-                        onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        value="SWD392"
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-100 cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -770,7 +782,7 @@ const ExamManager = () => {
                       setShowCreateModal(false);
                       setFormData({
                         name: '',
-                        subjectCode: '',
+                        subjectCode: 'SWD392',
                         semester: '',
                         academicYear: '',
                         examDate: '',
@@ -835,9 +847,9 @@ const ExamManager = () => {
                       <input
                         type="text"
                         required
-                        value={formData.subjectCode}
-                        onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        value="SWD392"
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-100 cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -887,8 +899,8 @@ const ExamManager = () => {
                       onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                     >
-                      <option value="true">Đang hoạt động</option>
-                      <option value="false">Không hoạt động</option>
+                      <option value="true">Active</option>
+                      <option value="false">No Active</option>
                     </select>
                   </div>
                 </div>
@@ -1000,7 +1012,7 @@ const ExamManager = () => {
                     </div>
                     <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                       <p className="text-xs text-blue-800">
-                        <strong>Lưu ý:</strong> File ZIP sẽ được import vào Exam ID: <strong>{selectedExamForImport.id}</strong>. 
+                        <strong>Lưu ý:</strong> File ZIP sẽ được import vào Exam ID: <strong>{selectedExamForImport.subjectCode} || {selectedExamForImport.semester}</strong>. 
                         Tất cả các thông tin trong file sẽ được liên kết với exam này.
                       </p>
                     </div>
@@ -1098,7 +1110,7 @@ const ExamManager = () => {
                         {exportedInfo.importStatus.numUnmatched !== undefined && (
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-blue-700">Mã sinh viên không khớp với danh sách:</span>
-                            <span className="text-sm font-medium text-blue-900">{exportedInfo.importStatus.numUnmatched || 0}</span>
+                            <span className="text-sm font-medium text-blue-900">{exportedInfo.importStatus.numStudentsImported || 0}</span>
                           </div>
                         )}
                         {exportedInfo.importStatus.finishedAt && (

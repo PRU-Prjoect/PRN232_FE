@@ -23,16 +23,29 @@ export const AuthProvider = ({ children }) => {
         const token = localStorage.getItem('token');
         const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
         
+        // Only set logged in if we have a valid token
         if (loggedIn && token) {
-          // Try to get current user from API
-          const userData = await authService.getCurrentUser();
-          setUser(userData);
-          setIsLoggedIn(true);
-        } else if (loggedIn) {
-          // Fallback to localStorage if no token
-          const userData = JSON.parse(localStorage.getItem('user') || '{}');
-          setUser(userData);
-          setIsLoggedIn(true);
+          try {
+            // Try to get current user from API to verify token is still valid
+            const userData = await authService.getCurrentUser();
+            setUser(userData);
+            setIsLoggedIn(true);
+          } catch (apiError) {
+            // Token is invalid or expired, clear everything
+            console.error('Token validation failed:', apiError);
+            localStorage.removeItem('token');
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('user');
+            setUser(null);
+            setIsLoggedIn(false);
+          }
+        } else {
+          // No token or not marked as logged in, ensure clean state
+          localStorage.removeItem('token');
+          localStorage.removeItem('isLoggedIn');
+          localStorage.removeItem('user');
+          setUser(null);
+          setIsLoggedIn(false);
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -40,6 +53,8 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
         localStorage.removeItem('isLoggedIn');
         localStorage.removeItem('user');
+        setUser(null);
+        setIsLoggedIn(false);
       } finally {
         setLoading(false);
       }

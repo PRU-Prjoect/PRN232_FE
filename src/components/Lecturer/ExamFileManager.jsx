@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import FileUploader from './FileUploader';
-import FileViewer from './FileViewer';
+import FileUploader from '../Admin/FileUploader';
+import FileViewer from '../Admin/FileViewer';
 import SubmissionsList from './SubmissionsList';
-import ExamManager from './ExamManager';
+import ExamManager from '../Admin/ExamManager';
 import { useAuth } from '../../contexts/AuthContext';
 import { lecturerService } from '../../services';
 import AssignmentManager from '../../pages/AssignmentManager';

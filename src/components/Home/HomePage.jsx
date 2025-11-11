@@ -86,13 +86,15 @@ const HomePage = () => {
                   <span className="text-sm text-gray-700">
                     Welcome <span className="font-semibold">{user?.name}</span>
                   </span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    user?.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                    user?.role === 'lecturer' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {user?.role || 'guest'}
-                  </span>
+                  {user?.role && (
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      user?.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                      user?.role === 'lecturer' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {user?.role}
+                    </span>
+                  )}
                   <svg 
                     className={`w-4 h-4 transform transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} 
                     fill="currentColor" 
@@ -118,13 +120,15 @@ const HomePage = () => {
                           <strong>Student ID:</strong> {user.studentId}
                         </div>
                       )}
-                      <div className="px-4 py-2 text-sm text-gray-700">
-                        <strong>Role:</strong> <span className={`px-2 py-1 rounded text-xs ${
-                          user?.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                          user?.role === 'lecturer' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>{user?.role || 'Guest'}</span>
-                      </div>
+                      {user?.role && (
+                        <div className="px-4 py-2 text-sm text-gray-700">
+                          <strong>Role:</strong> <span className={`px-2 py-1 rounded text-xs ${
+                            user?.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                            user?.role === 'lecturer' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>{user?.role}</span>
+                        </div>
+                      )}
                       <div className="px-4 py-2 text-sm text-gray-700">
                         <strong>Department:</strong> {user?.department || 'Software Engineering'}
                       </div>
@@ -163,9 +167,9 @@ const HomePage = () => {
               </div>
             ) : (
               <>
-                <Link to="/register" className="px-5 py-2 border border-orange-500 text-orange-500 hover:bg-orange-50 rounded-lg font-medium shadow-sm transition inline-block">
+                {/* <Link to="/register" className="px-5 py-2 border border-orange-500 text-orange-500 hover:bg-orange-50 rounded-lg font-medium shadow-sm transition inline-block">
                   Register
-                </Link>
+                </Link> */}
                 <Link to="/login" className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium shadow-sm transition inline-block">
                   Login
                 </Link>

@@ -15,13 +15,27 @@ const Login = () => {
   const { login: loginContext } = useAuth();
 
   useEffect(() => {
-    const savedEmail = localStorage.getItem("rememberedEmail");
-    if (savedEmail) {
-      setCredentials((prev) => ({
-        ...prev,
-        email: savedEmail,
-      }));
-      setRememberMe(true);
+    const savedCredentials = localStorage.getItem("rememberedCredentials");
+    if (savedCredentials) {
+      try {
+        const { email, password } = JSON.parse(savedCredentials);
+        setCredentials({
+          email: email || "",
+          password: password || "",
+        });
+        setRememberMe(true);
+      } catch (error) {
+        console.error("Error loading saved credentials:", error);
+        // Fallback to old format (just email)
+        const savedEmail = localStorage.getItem("rememberedEmail");
+        if (savedEmail) {
+          setCredentials((prev) => ({
+            ...prev,
+            email: savedEmail,
+          }));
+          setRememberMe(true);
+        }
+      }
     }
   }, []);
 
@@ -38,7 +52,8 @@ const Login = () => {
     setRememberMe(isChecked);
     
     if (!isChecked) {
-      localStorage.removeItem("rememberedEmail");
+      localStorage.removeItem("rememberedCredentials");
+      localStorage.removeItem("rememberedEmail"); // Remove old format if exists
     }
   };
 
@@ -58,9 +73,16 @@ const Login = () => {
       
       if (result.success) {
         if (rememberMe) {
-          localStorage.setItem("rememberedEmail", credentials.email);
-        } else {
+          // Save both email and password
+          localStorage.setItem("rememberedCredentials", JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }));
+          // Remove old format if exists
           localStorage.removeItem("rememberedEmail");
+        } else {
+          localStorage.removeItem("rememberedCredentials");
+          localStorage.removeItem("rememberedEmail"); // Remove old format if exists
         }
         
         navigate("/");
@@ -96,7 +118,7 @@ const Login = () => {
             <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
               Sign in to your account
             </h2>
-            <p className="mt-2 text-center text-sm text-gray-600">
+            {/* <p className="mt-2 text-center text-sm text-gray-600">
               Or{" "}
               <Link
                 to="/register"
@@ -104,7 +126,7 @@ const Login = () => {
               >
                 create a new account
               </Link>
-            </p>
+            </p> */}
           </div>
 
           {error && (
@@ -206,7 +228,7 @@ const Login = () => {
               </button>
             </div>
             
-            <div className="text-center mt-4">
+            {/* <div className="text-center mt-4">
               <p className="text-sm text-gray-600">
                 Don't have an account?{" "}
                 <Link
@@ -216,7 +238,7 @@ const Login = () => {
                   Register now
                 </Link>
               </p>
-            </div>
+            </div> */}
           </form>
         </div>
       </div>
