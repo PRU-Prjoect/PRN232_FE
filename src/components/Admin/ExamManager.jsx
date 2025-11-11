@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { examService } from '../services';
+import { examService } from '../../services';
 
 const ExamManager = () => {
   const [exams, setExams] = useState([]);

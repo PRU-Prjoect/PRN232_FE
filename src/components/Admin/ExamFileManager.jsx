@@ -4,9 +4,9 @@ import FileUploader from './FileUploader';
 import FileViewer from './FileViewer';
 import SubmissionsList from './SubmissionsList';
 import ExamManager from './ExamManager';
-import { useAuth } from '../contexts/AuthContext';
-import { lecturerService } from '../services';
-import AssignmentManager from '../pages/AssignmentManager';
+import { useAuth } from '../../contexts/AuthContext';
+import { lecturerService } from '../../services';
+import AssignmentManager from '../../pages/AssignmentManager';
 
 const courseData = {
   swd392: {
