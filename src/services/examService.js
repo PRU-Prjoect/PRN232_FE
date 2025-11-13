@@ -78,6 +78,8 @@ export const examService = {
   importZip: async (examId, file) => {
     const formData = new FormData();
     formData.append('file', file);
+    
+    // Use direct fetch for multipart/form-data
     const token = localStorage.getItem('token');
     const API_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://localhost:7244/api');
     
@@ -104,6 +106,8 @@ export const examService = {
       const errorText = await response.text();
       throw new Error(errorText || `HTTP error! status: ${response.status}`);
     }
+    
+    // Response is JSON with jobId and other info
     const data = await response.json();
     return data;
   },

@@ -1,9 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { partService } from '../../services';
 
 const GradingModal = ({ submission, onClose, onSave }) => {
   const [grade, setGrade] = useState(submission.grade || '');
   const [feedback, setFeedback] = useState(submission.feedback || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [parts, setParts] = useState([]);
+  const [loadingParts, setLoadingParts] = useState(false);
+  const [partsError, setPartsError] = useState('');
+
+  // Fetch parts when modal opens with examId
+  useEffect(() => {
+    if (submission?.examId) {
+      fetchParts();
+    }
+  }, [submission?.examId]);
+
+  const fetchParts = async () => {
+    try {
+      setLoadingParts(true);
+      setPartsError('');
+      
+      const result = await partService.getParts({
+        examId: submission.examId,
+        pageIndex: 1,
+        pageSize: 10,
+        sortDirection: 'asc'
+      });
+
+      console.log('Parts data:', result);
+
+      // Handle different response structures
+      let partsData = [];
+      if (result && result.data) {
+        if (Array.isArray(result.data)) {
+          partsData = result.data;
+        } else if (result.data.items && Array.isArray(result.data.items)) {
+          partsData = result.data.items;
+        } else if (result.data.data && Array.isArray(result.data.data)) {
+          partsData = result.data.data;
+        }
+      } else if (Array.isArray(result)) {
+        partsData = result;
+      } else if (result && result.items && Array.isArray(result.items)) {
+        partsData = result.items;
+      }
+
+      console.log(`Found ${partsData.length} parts for exam ${submission.examId}`);
+      setParts(partsData);
+    } catch (err) {
+      console.error('Error fetching parts:', err);
+      setPartsError(err?.message || 'Failed to load parts');
+    } finally {
+      setLoadingParts(false);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -44,36 +95,82 @@ const GradingModal = ({ submission, onClose, onSave }) => {
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">{submission.studentName}</h3>
-                <p className="text-sm text-gray-500">{submission.studentId}</p>
+                <h3 className="text-lg font-medium text-gray-900">
+                  {submission.studentName || `Assignment ${submission.name}`}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {submission.studentId || `Solution ID: ${submission.solutionId || 'N/A'}`}
+                </p>
               </div>
               <div className="mt-2 sm:mt-0">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  submission.status === 'graded' ? 'bg-green-100 text-green-800' :
+                  submission.status === 'graded' || submission.status === 2 ? 'bg-green-100 text-green-800' :
                   submission.status === 'late' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-blue-100 text-blue-800'
                 }`}>
-                  {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
+                  {submission.status === 0 ? 'Pending' :
+                   submission.status === 1 ? 'In Progress' :
+                   submission.status === 2 ? 'Completed' :
+                   submission.status ? submission.status.charAt(0).toUpperCase() + submission.status.slice(1) : 'N/A'}
                 </span>
               </div>
             </div>
 
+            {/* Parts Section */}
+            {submission?.examId && (
+              <div className="bg-blue-50 rounded-lg p-4 mb-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Exam Parts</h4>
+                {loadingParts ? (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                    <span className="text-sm">Loading parts...</span>
+                  </div>
+                ) : partsError ? (
+                  <div className="text-sm text-red-600">{partsError}</div>
+                ) : parts.length > 0 ? (
+                  <div className="space-y-2">
+                    {parts.map((part, index) => (
+                      <div key={part.id || index} className="bg-white rounded-md p-3 border border-gray-200">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              Part {index + 1}: {part.name || part.title || `Part ${part.id}`}
+                            </p>
+                            {part.description && (
+                              <p className="text-xs text-gray-500 mt-1">{part.description}</p>
+                            )}
+                            {part.maxScore && (
+                              <p className="text-xs text-gray-600 mt-1">Max Score: {part.maxScore}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No parts found for this exam</p>
+                )}
+              </div>
+            )}
+
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium text-gray-700">Submission Details</h4>
-                <span className="text-xs text-gray-500">
-                  {new Date(submission.submissionDate).toLocaleString()}
-                </span>
+                <h4 className="text-sm font-medium text-gray-700">Assignment Details</h4>
+                {submission.createdAt && (
+                  <span className="text-xs text-gray-500">
+                    {new Date(submission.createdAt).toLocaleString()}
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-gray-500">Files</p>
-                  <p className="text-sm font-medium">{submission.fileCount} files</p>
+                  <p className="text-xs text-gray-500">Assignment ID</p>
+                  <p className="text-sm font-medium">{submission.id || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Current Grade</p>
                   <p className="text-sm font-medium">
-                    {submission.grade !== null ? `${submission.grade}/10` : 'Not graded'}
+                    {submission.grade !== null && submission.grade !== undefined ? `${submission.grade}/10` : 'Not graded'}
                   </p>
                 </div>
               </div>

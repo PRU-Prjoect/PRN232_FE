@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import FileUploader from '../Admin/FileUploader';
 import FileViewer from '../Admin/FileViewer';
 import SubmissionsList from './SubmissionsList';
 import ExamManager from '../Admin/ExamManager';
 import { useAuth } from '../../contexts/AuthContext';
-import { lecturerService } from '../../services';
+import { lecturerService, finalscoreService, assignmentService, markingService } from '../../services';
 import AssignmentManager from '../../pages/AssignmentManager';
 
 const courseData = {
@@ -41,6 +41,21 @@ const ExamFileManager = () => {
   const [zipContents, setZipContents] = useState([]);
   const [loadingZipContents, setLoadingZipContents] = useState(false);
   const [importedSubmissions, setImportedSubmissions] = useState([]);
+  
+  // Final scores state for Approve Scores tab
+  const [finalScores, setFinalScores] = useState([]);
+  const [finalScoresLoading, setFinalScoresLoading] = useState(false);
+  const [finalScoresError, setFinalScoresError] = useState('');
+  const [finalScoresPage, setFinalScoresPage] = useState(1);
+  const [finalScoresPageSize] = useState(10);
+  
+  // Markings detail modal state
+  const [showMarkingsModal, setShowMarkingsModal] = useState(false);
+  const [selectedSolutionId, setSelectedSolutionId] = useState(null);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
+  const [markings, setMarkings] = useState([]);
+  const [markingsLoading, setMarkingsLoading] = useState(false);
+  const [markingsError, setMarkingsError] = useState('');
 
   const handleExportZip = async () => {
     try {
@@ -233,6 +248,43 @@ const ExamFileManager = () => {
     }
   }, [courseId, navigate, isLoggedIn, isLecturer, isAdmin]);
 
+  // Fetch final scores for Approve Scores tab
+  const fetchFinalScores = useCallback(async () => {
+    try {
+      setFinalScoresLoading(true);
+      setFinalScoresError('');
+      const result = await finalscoreService.getFinalScores({
+        pageIndex: finalScoresPage,
+        pageSize: finalScoresPageSize,
+        sortDirection: 'asc'
+      });
+      
+      // Handle different response structures
+      let scores = [];
+      if (result && result.data) {
+        if (Array.isArray(result.data)) {
+          scores = result.data;
+        } else if (result.data.items && Array.isArray(result.data.items)) {
+          scores = result.data.items;
+        } else if (result.data.data && Array.isArray(result.data.data)) {
+          scores = result.data.data;
+        }
+      } else if (Array.isArray(result)) {
+        scores = result;
+      } else if (result && result.items && Array.isArray(result.items)) {
+        scores = result.items;
+      }
+      
+      setFinalScores(scores);
+    } catch (err) {
+      console.error('Error fetching final scores:', err);
+      setFinalScoresError(err?.message || 'Failed to load final scores');
+      setFinalScores([]);
+    } finally {
+      setFinalScoresLoading(false);
+    }
+  }, [finalScoresPage, finalScoresPageSize]);
+
   useEffect(() => {
     const loadLecturers = async () => {
       if (!(activeTab === 'assign' && isAdmin())) return;
@@ -253,6 +305,112 @@ const ExamFileManager = () => {
     };
     loadLecturers();
   }, [activeTab, isAdmin, lecturerPage, lecturerPageSize]);
+
+  // Fetch final scores when approve tab is active
+  useEffect(() => {
+    if (activeTab === 'approve' && isAdmin()) {
+      fetchFinalScores();
+    }
+  }, [activeTab, isAdmin, fetchFinalScores]);
+
+  // Handle view markings details
+  const handleViewMarkings = async (solutionId) => {
+    try {
+      setSelectedSolutionId(solutionId);
+      setShowMarkingsModal(true);
+      setMarkingsLoading(true);
+      setMarkingsError('');
+      setMarkings([]);
+      setSelectedAssignmentId(null);
+
+      // First, get assignment by solutionId
+      let assignmentId = null;
+      try {
+        const assignmentsResult = await assignmentService.getAssignments({
+          solutionId: solutionId,
+          pageIndex: 1,
+          pageSize: 100
+        });
+        
+        // Handle different response structures
+        let assignments = [];
+        if (assignmentsResult && assignmentsResult.data) {
+          if (Array.isArray(assignmentsResult.data)) {
+            assignments = assignmentsResult.data;
+          } else if (assignmentsResult.data.items && Array.isArray(assignmentsResult.data.items)) {
+            assignments = assignmentsResult.data.items;
+          } else if (assignmentsResult.data.data && Array.isArray(assignmentsResult.data.data)) {
+            assignments = assignmentsResult.data.data;
+          }
+        } else if (Array.isArray(assignmentsResult)) {
+          assignments = assignmentsResult;
+        } else if (assignmentsResult && assignmentsResult.items && Array.isArray(assignmentsResult.items)) {
+          assignments = assignmentsResult.items;
+        }
+
+        if (assignments.length > 0) {
+          assignmentId = assignments[0].id;
+          setSelectedAssignmentId(assignmentId);
+        }
+      } catch (assignmentErr) {
+        console.warn('Failed to get assignment by solutionId:', assignmentErr);
+      }
+
+      // Get markings data using whichever endpoint is available
+      if (assignmentId) {
+        const parseMarkings = (result) => {
+          let list = [];
+          if (result && result.data) {
+            if (Array.isArray(result.data)) {
+              list = result.data;
+            } else if (result.data.items && Array.isArray(result.data.items)) {
+              list = result.data.items;
+            } else if (result.data.data && Array.isArray(result.data.data)) {
+              list = result.data.data;
+            }
+          } else if (Array.isArray(result)) {
+            list = result;
+          } else if (result && result.items && Array.isArray(result.items)) {
+            list = result.items;
+          }
+          return list;
+        };
+
+        try {
+          let markingsList = [];
+          try {
+            const markingsResult = await markingService.getMarkingsByAssignment(assignmentId);
+            markingsList = parseMarkings(markingsResult);
+          } catch (markingErr) {
+            console.warn('Assignment endpoint for markings failed, falling back to query API:', markingErr);
+
+            // Fallback: try generic markings endpoint with assignmentId filter if supported
+            const fallbackResult = await markingService.getMarkings({ assignmentId, pageIndex: 1, pageSize: 1000 });
+            markingsList = parseMarkings(fallbackResult);
+          }
+
+          if (markingsList.length === 0) {
+            // As a last resort, try filtering by solutionId if assignmentId filter is unsupported
+            const solutionResult = await markingService.getMarkings({ solutionId: solutionId, pageIndex: 1, pageSize: 1000 });
+            const allList = parseMarkings(solutionResult);
+            markingsList = allList.filter(m => m.assignmentId === assignmentId || m.solutionId === solutionId);
+          }
+
+          setMarkings(markingsList);
+        } catch (markingErr) {
+          console.error('Failed to load markings:', markingErr);
+          setMarkingsError('Failed to load marking details');
+        }
+      } else {
+        setMarkingsError('Assignment not found for this solution');
+      }
+    } catch (err) {
+      console.error('Error loading markings:', err);
+      setMarkingsError(err?.message || 'Failed to load marking details');
+    } finally {
+      setMarkingsLoading(false);
+    }
+  };
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -743,16 +901,254 @@ const ExamFileManager = () => {
             </div>
           )}
           {activeTab === 'approve' && isAdmin() && (
-            <div className="p-12 text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-purple-100 mr-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Approve Scores</h3>
+                    <p className="text-sm text-gray-500">Review and approve student scores graded by lecturers</p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchFinalScores}
+                  disabled={finalScoresLoading}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm disabled:opacity-50 flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className={`h-4 w-4 ${finalScoresLoading ? 'animate-spin' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Approve Scores</h3>
-              <p className="text-gray-600 mb-4">Review and approve student scores graded by lecturers.</p>
-              <div className="text-sm text-gray-500">
-                <p>View detailed grading by lecturers and approve final scores.</p>
+
+              {finalScoresError && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded">{finalScoresError}</div>
+              )}
+
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solution ID</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approved At</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {finalScoresLoading ? (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-6 text-center text-gray-500">
+                          <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500"></div>
+                            <span className="ml-2">Loading final scores...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : finalScores?.length ? (
+                      finalScores.map((score, idx) => (
+                        <tr key={score.id || score.solutionId || idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-700 font-mono">{score.solutionId || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{score.totalScore !== null && score.totalScore !== undefined ? score.totalScore : 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {score.approvedAt ? new Date(score.approvedAt).toLocaleString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }) : 'Not approved'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {score.createdAt ? new Date(score.createdAt).toLocaleString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }) : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              score.approvedAt 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {score.approvedAt ? 'Approved' : 'Pending Approval'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center">
+                            <div className="inline-flex items-center gap-2">
+                              {!score.approvedAt && (
+                                <button
+                                  onClick={() => {
+                                    // TODO: Implement approve action
+                                    alert('Approve functionality will be implemented');
+                                  }}
+                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
+                                >
+                                  Approve
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleViewMarkings(score.solutionId)}
+                                className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                View Details
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-6 text-center text-gray-500">No final scores found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-gray-600">
+                  Page {finalScoresPage}
+                </div>
+                <div className="space-x-2">
+                  <button
+                    onClick={() => setFinalScoresPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    disabled={finalScoresPage === 1 || finalScoresLoading}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setFinalScoresPage(p => p + 1)}
+                    className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    disabled={finalScoresLoading || (finalScores.length < finalScoresPageSize)}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Markings Detail Modal */}
+          {showMarkingsModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Marking Details</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Solution ID: <span className="font-mono">{selectedSolutionId}</span>
+                      {selectedAssignmentId && (
+                        <> | Assignment ID: <span className="font-mono">{selectedAssignmentId}</span></>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowMarkingsModal(false);
+                      setMarkings([]);
+                      setSelectedSolutionId(null);
+                      setSelectedAssignmentId(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="px-6 py-4 overflow-y-auto flex-1">
+                  {markingsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+                      <span className="ml-3 text-gray-600">Loading marking details...</span>
+                    </div>
+                  ) : markingsError ? (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                      {markingsError}
+                    </div>
+                  ) : markings.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question ID</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {markings.map((marking, idx) => (
+                              <tr key={marking.id || idx} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm text-gray-700 font-mono">{marking.questionId || 'N/A'}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                  {marking.score !== null && marking.score !== undefined ? marking.score : 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-500">
+                                  {marking.createdAt ? new Date(marking.createdAt).toLocaleString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  }) : 'N/A'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Total Questions: {markings.length}</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            Total Score: {markings.reduce((sum, m) => sum + (parseFloat(m.score) || 0), 0).toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p>No marking details found for this solution</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setShowMarkingsModal(false);
+                      setMarkings([]);
+                      setSelectedSolutionId(null);
+                      setSelectedAssignmentId(null);
+                    }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           )}
