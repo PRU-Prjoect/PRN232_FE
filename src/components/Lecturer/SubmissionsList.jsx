@@ -634,8 +634,17 @@ const SubmissionsList = ({ courseId }) => {
                                             <div className="flex items-center gap-2">
                                               <button
                                                 onClick={() => handleGradeAssignment(assignment, exam.id)}
-                                                className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors flex items-center gap-1"
-                                                title="Grade this assignment"
+                                                className={`px-3 py-1 text-white text-xs font-medium rounded-md transition-colors flex items-center gap-1 ${
+                                                  assignment.status === 2 || assignment.status === 'Completed' || assignment.status === 'completed'
+                                                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
+                                                    : 'bg-green-500 hover:bg-green-600'
+                                                }`}
+                                                title={
+                                                  assignment.status === 2 || assignment.status === 'Completed' || assignment.status === 'completed'
+                                                    ? 'Grade already approved - cannot modify'
+                                                    : 'Grade this assignment'
+                                                }
+                                                disabled={assignment.status === 2 || assignment.status === 'Completed' || assignment.status === 'completed'}
                                               >
                                                 <svg
                                                   xmlns="http://www.w3.org/2000/svg"
@@ -729,3 +738,6 @@ const SubmissionsList = ({ courseId }) => {
 };
 
 export default SubmissionsList;
+
+
+
