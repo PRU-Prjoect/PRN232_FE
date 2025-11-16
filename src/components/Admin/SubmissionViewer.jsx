@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { CloseOutlined } from '@ant-design/icons';
+import { formatDateTime } from '../../utils/dateHelpers';
 
 const sampleSubmissionFiles = [
 ];
@@ -84,9 +86,6 @@ const SubmissionViewer = ({ submission, onClose }) => {
     else return (bytes / 1048576).toFixed(1) + ' MB';
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
-  };
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -98,16 +97,14 @@ const SubmissionViewer = ({ submission, onClose }) => {
                 Submission Files - {submission.studentName}
               </h2>
               <p className="text-sm text-gray-500">
-                Student ID: {submission.studentId} • Submitted: {new Date(submission.submissionDate).toLocaleString()}
+                Student ID: {submission.studentId} • Submitted: {formatDateTime(submission.submissionDate)}
               </p>
             </div>
             <button 
               onClick={onClose}
               className="text-gray-400 hover:text-gray-500 focus:outline-none"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <CloseOutlined className="text-xl" />
             </button>
           </div>
         </div>

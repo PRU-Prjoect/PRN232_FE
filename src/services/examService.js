@@ -78,8 +78,6 @@ export const examService = {
   importZip: async (examId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    // Use direct fetch for multipart/form-data
     const token = localStorage.getItem('token');
     const API_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || 'https://localhost:7244/api');
     
@@ -162,25 +160,19 @@ export const examService = {
       const errorText = await response.text();
       throw new Error(errorText || `HTTP error! status: ${response.status}`);
     }
-    
-    // Get blob from response
     const blob = await response.blob();
-    
-    // Extract filename from Content-Disposition header
     const contentDisposition = response.headers.get('content-disposition');
     let filename = null;
     if (contentDisposition) {
-      // First try to get UTF-8 encoded filename (filename*=UTF-8''...)
       const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
       if (utf8Match) {
         try {
           filename = decodeURIComponent(utf8Match[1]);
         } catch (e) {
-          // If decode fails, fall back to regular filename
+
         }
       }
-      
-      // If no UTF-8 filename, try regular filename
+
       if (!filename) {
         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (filenameMatch && filenameMatch[1]) {
@@ -219,24 +211,19 @@ export const examService = {
       throw new Error(errorText || `HTTP error! status: ${response.status}`);
     }
     
-    // Get blob from response
     const blob = await response.blob();
-    
-    // Extract filename from Content-Disposition header
     const contentDisposition = response.headers.get('content-disposition');
     let filename = null;
     if (contentDisposition) {
-      // First try to get UTF-8 encoded filename (filename*=UTF-8''...)
       const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
       if (utf8Match) {
         try {
           filename = decodeURIComponent(utf8Match[1]);
         } catch (e) {
-          // If decode fails, fall back to regular filename
+
         }
       }
       
-      // If no UTF-8 filename, try regular filename
       if (!filename) {
         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (filenameMatch && filenameMatch[1]) {

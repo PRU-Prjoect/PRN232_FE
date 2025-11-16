@@ -10,7 +10,6 @@ export const assignmentService = {
       });
       return response.data;
     } catch (error) {
-      // Parse error message from JSON response if available
       if (error?.message) {
         try {
           const errorJson = JSON.parse(error.message);
@@ -20,7 +19,6 @@ export const assignmentService = {
             throw new Error(errorJson.error.title);
           }
         } catch (e) {
-          // If not JSON, use original error message
         }
       }
       throw error;
@@ -59,7 +57,6 @@ export const assignmentService = {
       const response = await api.post(`/assignment/${assignmentId}/submit`);
       return response.data;
     } catch (error) {
-      // Parse error message from JSON response if available
       if (error?.message) {
         try {
           const errorJson = JSON.parse(error.message);
@@ -69,7 +66,7 @@ export const assignmentService = {
             throw new Error(errorJson.error.title);
           }
         } catch (e) {
-          // If not JSON, use original error message
+          
         }
       }
       throw error;
@@ -83,8 +80,6 @@ export const assignmentService = {
         solutionId,
         lecturerId,
       };
-      
-      // Include examId if provided
       if (examId) {
         requestBody.examId = examId;
       }
@@ -92,7 +87,6 @@ export const assignmentService = {
       const response = await api.post('/assignment', requestBody);
       return response.data;
     } catch (error) {
-      // Parse error message from JSON response if available
       if (error?.message) {
         try {
           const errorJson = JSON.parse(error.message);
@@ -102,7 +96,31 @@ export const assignmentService = {
             throw new Error(errorJson.error.title);
           }
         } catch (e) {
-          // If not JSON, use original error message
+
+        }
+      }
+      throw error;
+    }
+  },
+
+  // Reassign assignment to another lecturer
+  reassignAssignment: async (assignmentId, newLecturerId) => {
+    try {
+      const response = await api.put(`/assignment/${assignmentId}/reassign`, {
+        assignmentId,
+        newLecturerId,
+      });
+      return response.data;
+    } catch (error) {
+      if (error?.message) {
+        try {
+          const errorJson = JSON.parse(error.message);
+          if (errorJson.error?.details) {
+            throw new Error(errorJson.error.details);
+          } else if (errorJson.error?.title) {
+            throw new Error(errorJson.error.title);
+          }
+        } catch (e) {
         }
       }
       throw error;

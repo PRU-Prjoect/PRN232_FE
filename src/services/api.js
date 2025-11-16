@@ -16,13 +16,21 @@ const api = {
     });
     
     if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('isLoggedIn');
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
+      const error = new Error('Unauthorized');
+      error.response = { status: 401 };
+      throw error;
+    }
+    if (response.status === 404) {
+      return { data: null };
     }
     
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type');
+      const text = await response.text();
+      const error = new Error(text || `HTTP error! status: ${response.status}`);
+      error.response = { status: response.status };
+      throw error;
+    }
 
     const contentType = response.headers.get('content-type');
     const text = await response.text();
@@ -59,18 +67,16 @@ const api = {
     });
     
     if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('isLoggedIn');
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
+      const error = new Error('Unauthorized');
+      error.response = { status: 401 };
+      throw error;
     }
     
     const contentType = response.headers.get('content-type');
     const text = await response.text();
     
     if (!response.ok) {
-      // Try to parse error JSON response
+
       if (contentType && contentType.includes('application/json')) {
         try {
           const errorJson = JSON.parse(text);
@@ -84,7 +90,7 @@ const api = {
             throw error;
           }
         } catch (e) {
-          // If parsing fails, use original text
+
         }
       }
       const error = new Error(text || `HTTP error! status: ${response.status}`);
@@ -124,11 +130,9 @@ const api = {
     });
     
     if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('isLoggedIn');
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
+      const error = new Error('Unauthorized');
+      error.response = { status: 401 };
+      throw error;
     }
 
     const contentType = response.headers.get('content-type');
@@ -168,11 +172,9 @@ const api = {
     });
     
     if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('isLoggedIn');
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
+      const error = new Error('Unauthorized');
+      error.response = { status: 401 };
+      throw error;
     }
  
     const contentType = response.headers.get('content-type');
@@ -213,11 +215,9 @@ const api = {
     });
     
     if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('isLoggedIn');
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
+      const error = new Error('Unauthorized');
+      error.response = { status: 401 };
+      throw error;
     }
     
     const contentType = response.headers.get('content-type');

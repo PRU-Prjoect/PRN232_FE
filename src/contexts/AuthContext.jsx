@@ -17,30 +17,51 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load user data from localStorage on mount
     const loadUserData = async () => {
       try {
         const token = localStorage.getItem('token');
         const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
         
-        // Only set logged in if we have a valid token
         if (loggedIn && token) {
           try {
-            // Try to get current user from API to verify token is still valid
             const userData = await authService.getCurrentUser();
             setUser(userData);
             setIsLoggedIn(true);
           } catch (apiError) {
-            // Token is invalid or expired, clear everything
             console.error('Token validation failed:', apiError);
-            localStorage.removeItem('token');
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('user');
-            setUser(null);
-            setIsLoggedIn(false);
+            const isUnauthorized = apiError?.response?.status === 401 || 
+                                   apiError?.message?.includes('401') ||
+                                   apiError?.message?.includes('Unauthorized');
+            
+            if (isUnauthorized) {
+              console.log('Token is invalid (401), clearing auth data');
+              localStorage.removeItem('token');
+              localStorage.removeItem('isLoggedIn');
+              localStorage.removeItem('user');
+              setUser(null);
+              setIsLoggedIn(false);
+              // Redirect to login after clearing token
+              window.location.href = '/login';
+            } else {
+              // For other errors (network, 500, etc.), try to use stored user data
+              const storedUser = localStorage.getItem('user');
+              if (storedUser) {
+                try {
+                  const parsedUser = JSON.parse(storedUser);
+                  setUser(parsedUser);
+                  setIsLoggedIn(true);
+                  console.log('Using stored user data due to API error (non-401)');
+                } catch (e) {
+                  console.error('Failed to parse stored user:', e);
+                }
+              } else {
+                // If no stored user and not 401, keep token but set logged in to false
+                console.warn('API error but keeping token:', apiError);
+              }
+            }
           }
         } else {
-          // No token or not marked as logged in, ensure clean state
+          // No token or not logged in, clear everything
           localStorage.removeItem('token');
           localStorage.removeItem('isLoggedIn');
           localStorage.removeItem('user');
@@ -49,12 +70,17 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Error loading user data:', error);
-        // Clear invalid session
-        localStorage.removeItem('token');
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('user');
-        setUser(null);
-        setIsLoggedIn(false);
+        const isUnauthorized = error?.response?.status === 401 || 
+                               error?.message?.includes('401') ||
+                               error?.message?.includes('Unauthorized');
+        
+        if (isUnauthorized) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('isLoggedIn');
+          localStorage.removeItem('user');
+          setUser(null);
+          setIsLoggedIn(false);
+        }
       } finally {
         setLoading(false);
       }
@@ -73,8 +99,7 @@ export const AuthProvider = ({ children }) => {
       if (!token) {
         throw new Error('No token received from server');
       }
-      
-      // Store token and user data
+
       localStorage.setItem('token', token);
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('user', JSON.stringify(userData));

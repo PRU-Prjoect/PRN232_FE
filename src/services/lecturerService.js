@@ -8,7 +8,6 @@ export const lecturerService = {
     return data;
   },
   createLecturer: async (payload) => {
-    // payload: { email, fullName, ... }
     const { data } = await api.post('/lecturer', payload);
     return data;
   },

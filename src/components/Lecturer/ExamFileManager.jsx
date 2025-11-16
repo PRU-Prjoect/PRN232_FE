@@ -1,12 +1,50 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Table, Button, Tabs, Space, Tag, Popconfirm, message } from 'antd';
+import { 
+  DeleteOutlined, 
+  EyeOutlined, 
+  PlusOutlined, 
+  ReloadOutlined,
+  QuestionCircleOutlined,
+  SettingOutlined,
+  UserOutlined,
+  SafetyOutlined,
+  EditOutlined,
+  ExclamationCircleOutlined,
+  CheckCircleOutlined,
+  FileTextOutlined,
+  UploadOutlined,
+  FolderOutlined,
+  FileOutlined,
+  TeamOutlined,
+  BarChartOutlined,
+  LineChartOutlined,
+  FormOutlined,
+  ArrowLeftOutlined,
+  ClockCircleOutlined
+} from '@ant-design/icons';
 import FileUploader from '../Admin/FileUploader';
 import FileViewer from '../Admin/FileViewer';
 import SubmissionsList from './SubmissionsList';
 import ExamManager from '../Admin/ExamManager';
+import ApproveScoresTab from './ApproveScoresTab';
+import ViewTotalScoresTab from './ViewTotalScoresTab';
+import LecturerManagementTab from './LecturerManagementTab';
+import ReportsTab from '../Admin/ReportsTab';
 import { useAuth } from '../../contexts/AuthContext';
-import { lecturerService, finalscoreService, assignmentService, markingService } from '../../services';
 import AssignmentManager from '../../pages/AssignmentManager';
+import LoadingSpinner from '../common/LoadingSpinner';
+import EmptyState from '../common/EmptyState';
+import Pagination from '../common/Pagination';
+import Modal from '../common/Modal';
+import ErrorAlert from '../common/ErrorAlert';
+import { 
+  groupFilesBySemesterAndCourse, 
+  createExtractedFiles, 
+  createSubmissionsFromZip,
+  processZipFile 
+} from '../../utils/zipHelpers';
 
 const courseData = {
   swd392: {
@@ -23,39 +61,12 @@ const ExamFileManager = () => {
   const [extractedFiles, setExtractedFiles] = useState([]);
   const [courseInfo, setCourseInfo] = useState(null);
   const [activeTab, setActiveTab] = useState('submissions');
-  const [lecturers, setLecturers] = useState([]);
-  const [lecturersLoading, setLecturersLoading] = useState(false);
-  const [lecturersError, setLecturersError] = useState('');
-  const [lecturerPage, setLecturerPage] = useState(1);
-  const [lecturerPageSize, setLecturerPageSize] = useState(10);
-  const [lecturerTotal, setLecturerTotal] = useState(0);
-  const [showAddLecturer, setShowAddLecturer] = useState(false);
-  const [showLecturerDetail, setShowLecturerDetail] = useState(false);
-  const [selectedLecturer, setSelectedLecturer] = useState(null);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const [createForm, setCreateForm] = useState({ fullName: '', email: '', password: '', role: 'lecturer' });
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
   const [zipFile, setZipFile] = useState(null);
   const [zipContents, setZipContents] = useState([]);
   const [loadingZipContents, setLoadingZipContents] = useState(false);
   const [importedSubmissions, setImportedSubmissions] = useState([]);
-  
-  // Final scores state for Approve Scores tab
-  const [finalScores, setFinalScores] = useState([]);
-  const [finalScoresLoading, setFinalScoresLoading] = useState(false);
-  const [finalScoresError, setFinalScoresError] = useState('');
-  const [finalScoresPage, setFinalScoresPage] = useState(1);
-  const [finalScoresPageSize] = useState(10);
-  
-  // Markings detail modal state
-  const [showMarkingsModal, setShowMarkingsModal] = useState(false);
-  const [selectedSolutionId, setSelectedSolutionId] = useState(null);
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
-  const [markings, setMarkings] = useState([]);
-  const [markingsLoading, setMarkingsLoading] = useState(false);
-  const [markingsError, setMarkingsError] = useState('');
 
   const handleExportZip = async () => {
     try {
@@ -101,19 +112,8 @@ const ExamFileManager = () => {
       }
       const JSZip = (await import('jszip')).default;
       const newZip = new JSZip();
-      const fileGroups = {};
-
-      zipContents.forEach(file => {
-        const semester = file.semester || 'Unknown';
-        const courseCode = file.courseCode || 'Unknown';
-        const key = `${semester}/${courseCode}`;
-
-        if (!fileGroups[key]) {
-          fileGroups[key] = [];
-        }
-
-        fileGroups[key].push(file);
-      });
+      const fileGroups = groupFilesBySemesterAndCourse(zipContents);
+      
       const originalZip = await JSZip.loadAsync(zipFile);
       for (const [path, files] of Object.entries(fileGroups)) {
         for (const file of files) {
@@ -124,8 +124,7 @@ const ExamFileManager = () => {
           }
         }
       }
-      const newZipBlob = await newZip.generateAsync({ type: 'blob' });
-      const extractedFiles = [];
+      
       const allFiles = [];
       originalZip.forEach((relativePath, zipEntry) => {
         if (!zipEntry.dir) {
@@ -135,48 +134,9 @@ const ExamFileManager = () => {
           });
         }
       });
-      for (const fileObj of allFiles) {
-        const fileContent = await fileObj.entry.async('blob');
-        const fileName = fileObj.path.split('/').pop();
-        const fileSize = fileObj.entry._data?.uncompressedSize || 0;
-        const fileType = fileName.split('.').pop().toLowerCase();
-        let semester = 'Unknown';
-        let courseCode = 'Unknown';
-        if (fileName.length >= 11) {
-          courseCode = fileName.substring(0, 6); 
-          semester = fileName.substring(7, 11);
-        }
-
-        // Hoặc thử phân tích từ đường dẫn
-        const pathParts = fileObj.path.split('/');
-        for (const part of pathParts) {
-          if (part.match(/^(SP|SU|FA|WI)\d{2}$/)) { 
-            semester = part;
-          } else if (part.match(/^[A-Z]{3}\d{3}$/)) { 
-            courseCode = part;
-          }
-        }
-
-        const path = `${semester}/${courseCode}`;
-        extractedFiles.push({
-          name: `${path}/${fileName}`,
-          content: fileContent,
-          size: fileSize,
-          type: fileType
-        });
-      }
-
-      const extractedGroups = {};
-      extractedFiles.forEach(file => {
-        const pathParts = file.name.split('/');
-        if (pathParts.length >= 2) {
-          const groupKey = `${pathParts[0]}/${pathParts[1]}`;
-          if (!extractedGroups[groupKey]) {
-            extractedGroups[groupKey] = [];
-          }
-          extractedGroups[groupKey].push(file);
-        }
-      });
+      
+      const extractedFiles = await createExtractedFiles(originalZip, allFiles);
+      const extractedGroups = groupFilesBySemesterAndCourse(extractedFiles);
 
       alert(`Đã giải nén file ZIP thành công! Tất cả các file đã được tổ chức theo kỳ học và mã môn.\n\nTổng số nhóm: ${Object.keys(extractedGroups).length}\nTổng số file: ${extractedFiles.length}`);
       setExtractedFiles([zipFileInfo, ...extractedFiles]);
@@ -185,39 +145,8 @@ const ExamFileManager = () => {
       }
       console.log('Extracted groups:', extractedGroups);
       console.log('Extracted files:', extractedFiles);
-      const newSubmissions = zipContents.map((file, index) => {
-        const pathParts = file.name.split('/');
-        let studentId = 'Unknown';
-        let studentName = 'Unknown Student';
-        for (const part of pathParts) {
-          if (part.match(/SE\d{6}/) || part.match(/[A-Z]{2,}\d{6}/)) {
-            studentId = part;
-            break;
-          }
-        }
-        for (const part of pathParts) {
-          if (part.includes('_') && part.length > 5) {
-            const nameParts = part.split('_');
-            if (nameParts.length >= 2) {
-              studentName = nameParts.slice(0, -1).join(' ');
-              break;
-            }
-          }
-        }
-
-        return {
-          id: `imported_${Date.now()}_${index}`,
-          studentName: studentName,
-          studentId: studentId,
-          fileName: file.originalFileName,
-          submissionDate: new Date().toISOString(),
-          status: 'submitted',
-          grade: null,
-          semester: file.semester,
-          courseCode: file.courseCode,
-          files: [`${file.semester}/${file.courseCode}/${file.originalFileName}`]
-        };
-      });
+      
+      const newSubmissions = createSubmissionsFromZip(zipContents);
       setImportedSubmissions(prev => [...prev, ...newSubmissions]);
       setExportError('');
       alert(`Import thành công! Đã upload file ZIP gốc và thêm ${newSubmissions.length} bài tập, tổ chức thành thư mục theo kỳ học và mã môn.`);
@@ -228,9 +157,13 @@ const ExamFileManager = () => {
       setExporting(false);
     }
   };
-  const { user, isLoggedIn, isLecturer, isAdmin } = useAuth();
+  const { user, isLoggedIn, isLecturer, isAdmin, loading } = useAuth();
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+    
     if (!isLoggedIn) {
       navigate('/login');
       return;
@@ -248,169 +181,6 @@ const ExamFileManager = () => {
     }
   }, [courseId, navigate, isLoggedIn, isLecturer, isAdmin]);
 
-  // Fetch final scores for Approve Scores tab
-  const fetchFinalScores = useCallback(async () => {
-    try {
-      setFinalScoresLoading(true);
-      setFinalScoresError('');
-      const result = await finalscoreService.getFinalScores({
-        pageIndex: finalScoresPage,
-        pageSize: finalScoresPageSize,
-        sortDirection: 'asc'
-      });
-      
-      // Handle different response structures
-      let scores = [];
-      if (result && result.data) {
-        if (Array.isArray(result.data)) {
-          scores = result.data;
-        } else if (result.data.items && Array.isArray(result.data.items)) {
-          scores = result.data.items;
-        } else if (result.data.data && Array.isArray(result.data.data)) {
-          scores = result.data.data;
-        }
-      } else if (Array.isArray(result)) {
-        scores = result;
-      } else if (result && result.items && Array.isArray(result.items)) {
-        scores = result.items;
-      }
-      
-      setFinalScores(scores);
-    } catch (err) {
-      console.error('Error fetching final scores:', err);
-      setFinalScoresError(err?.message || 'Failed to load final scores');
-      setFinalScores([]);
-    } finally {
-      setFinalScoresLoading(false);
-    }
-  }, [finalScoresPage, finalScoresPageSize]);
-
-  useEffect(() => {
-    const loadLecturers = async () => {
-      if (!(activeTab === 'assign' && isAdmin())) return;
-      try {
-        setLecturersLoading(true);
-        setLecturersError('');
-        const data = await lecturerService.getLecturers({ pageIndex: lecturerPage, pageSize: lecturerPageSize, sortDirection: 'asc' });
-        const payload = data?.data || data;
-        const items = payload?.items || [];
-        const total = payload?.totalItems ?? payload?.totalCount ?? payload?.total ?? items.length;
-        setLecturers(items);
-        setLecturerTotal(total);
-      } catch (err) {
-        setLecturersError(err?.message || 'Failed to load lecturers');
-      } finally {
-        setLecturersLoading(false);
-      }
-    };
-    loadLecturers();
-  }, [activeTab, isAdmin, lecturerPage, lecturerPageSize]);
-
-  // Fetch final scores when approve tab is active
-  useEffect(() => {
-    if (activeTab === 'approve' && isAdmin()) {
-      fetchFinalScores();
-    }
-  }, [activeTab, isAdmin, fetchFinalScores]);
-
-  // Handle view markings details
-  const handleViewMarkings = async (solutionId) => {
-    try {
-      setSelectedSolutionId(solutionId);
-      setShowMarkingsModal(true);
-      setMarkingsLoading(true);
-      setMarkingsError('');
-      setMarkings([]);
-      setSelectedAssignmentId(null);
-
-      // First, get assignment by solutionId
-      let assignmentId = null;
-      try {
-        const assignmentsResult = await assignmentService.getAssignments({
-          solutionId: solutionId,
-          pageIndex: 1,
-          pageSize: 100
-        });
-        
-        // Handle different response structures
-        let assignments = [];
-        if (assignmentsResult && assignmentsResult.data) {
-          if (Array.isArray(assignmentsResult.data)) {
-            assignments = assignmentsResult.data;
-          } else if (assignmentsResult.data.items && Array.isArray(assignmentsResult.data.items)) {
-            assignments = assignmentsResult.data.items;
-          } else if (assignmentsResult.data.data && Array.isArray(assignmentsResult.data.data)) {
-            assignments = assignmentsResult.data.data;
-          }
-        } else if (Array.isArray(assignmentsResult)) {
-          assignments = assignmentsResult;
-        } else if (assignmentsResult && assignmentsResult.items && Array.isArray(assignmentsResult.items)) {
-          assignments = assignmentsResult.items;
-        }
-
-        if (assignments.length > 0) {
-          assignmentId = assignments[0].id;
-          setSelectedAssignmentId(assignmentId);
-        }
-      } catch (assignmentErr) {
-        console.warn('Failed to get assignment by solutionId:', assignmentErr);
-      }
-
-      // Get markings data using whichever endpoint is available
-      if (assignmentId) {
-        const parseMarkings = (result) => {
-          let list = [];
-          if (result && result.data) {
-            if (Array.isArray(result.data)) {
-              list = result.data;
-            } else if (result.data.items && Array.isArray(result.data.items)) {
-              list = result.data.items;
-            } else if (result.data.data && Array.isArray(result.data.data)) {
-              list = result.data.data;
-            }
-          } else if (Array.isArray(result)) {
-            list = result;
-          } else if (result && result.items && Array.isArray(result.items)) {
-            list = result.items;
-          }
-          return list;
-        };
-
-        try {
-          let markingsList = [];
-          try {
-            const markingsResult = await markingService.getMarkingsByAssignment(assignmentId);
-            markingsList = parseMarkings(markingsResult);
-          } catch (markingErr) {
-            console.warn('Assignment endpoint for markings failed, falling back to query API:', markingErr);
-
-            // Fallback: try generic markings endpoint with assignmentId filter if supported
-            const fallbackResult = await markingService.getMarkings({ assignmentId, pageIndex: 1, pageSize: 1000 });
-            markingsList = parseMarkings(fallbackResult);
-          }
-
-          if (markingsList.length === 0) {
-            // As a last resort, try filtering by solutionId if assignmentId filter is unsupported
-            const solutionResult = await markingService.getMarkings({ solutionId: solutionId, pageIndex: 1, pageSize: 1000 });
-            const allList = parseMarkings(solutionResult);
-            markingsList = allList.filter(m => m.assignmentId === assignmentId || m.solutionId === solutionId);
-          }
-
-          setMarkings(markingsList);
-        } catch (markingErr) {
-          console.error('Failed to load markings:', markingErr);
-          setMarkingsError('Failed to load marking details');
-        }
-      } else {
-        setMarkingsError('Assignment not found for this solution');
-      }
-    } catch (err) {
-      console.error('Error loading markings:', err);
-      setMarkingsError(err?.message || 'Failed to load marking details');
-    } finally {
-      setMarkingsLoading(false);
-    }
-  };
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -425,38 +195,7 @@ const ExamFileManager = () => {
     setZipContents([]);
 
     try {
-      const JSZip = (await import('jszip')).default;
-      const zip = await JSZip.loadAsync(file);
-      const files = [];
-
-      zip.forEach((relativePath, zipEntry) => {
-        if (!zipEntry.dir) {
-          const fileName = relativePath.split('/').pop() || relativePath;
-          let semester = '';
-          let courseCode = '';
-
-          if (fileName.length >= 11) {
-            courseCode = fileName.substring(0, 6); 
-            semester = fileName.substring(7, 11);
-          }
-
-          files.push({
-            name: relativePath,
-            size: zipEntry._data?.uncompressedSize || 0,
-            compressedSize: zipEntry._data?.compressedSize || 0,
-            semester: semester,
-            courseCode: courseCode,
-            originalFileName: fileName
-          });
-        }
-      });
-      files.sort((a, b) => {
-        if (a.semester !== b.semester) {
-          return a.semester.localeCompare(b.semester);
-        }
-        return a.courseCode.localeCompare(b.courseCode);
-      });
-
+      const files = await processZipFile(file);
       setZipContents(files);
     } catch (error) {
       console.error('Error reading ZIP contents:', error);
@@ -466,57 +205,6 @@ const ExamFileManager = () => {
     }
   };
 
-  const handleViewLecturer = async (lec) => {
-    try {
-      setSelectedLecturer(null);
-      setShowLecturerDetail(true);
-      const resp = await lecturerService.getLecturerById(lec.id);
-      const payload = resp?.data || resp;
-      setSelectedLecturer(payload);
-    } catch (e) {
-      setSelectedLecturer(lec);
-    }
-  };
-
-  const handleCreateLecturer = async (e) => {
-    e?.preventDefault?.();
-    try {
-      setCreating(true);
-      setCreateError('');
-      await lecturerService.createLecturer({
-        fullName: createForm.fullName,
-        email: createForm.email,
-        password: createForm.password,
-        role: createForm.role,
-      });
-      setShowAddLecturer(false);
-      setCreateForm({ fullName: '', email: '', password: '', role: 'lecturer' });
-      const data = await lecturerService.getLecturers({ pageIndex: lecturerPage, pageSize: lecturerPageSize, sortDirection: 'asc' });
-      const payload = data?.data || data;
-      setLecturers(payload?.items || []);
-      setLecturerTotal(payload?.totalItems ?? payload?.totalCount ?? payload?.total ?? 0);
-    } catch (err) {
-      setCreateError(err?.message || 'Failed to create lecturer');
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleDeleteLecturer = async (lecturerId) => {
-    if (!lecturerId) return;
-
-    if (window.confirm('Bạn có chắc chắn muốn xóa giảng viên này?')) {
-      try {
-        await lecturerService.deleteLecturer(lecturerId);
-        const data = await lecturerService.getLecturers({ pageIndex: lecturerPage, pageSize: lecturerPageSize, sortDirection: 'asc' });
-        const payload = data?.data || data;
-        setLecturers(payload?.items || []);
-        setLecturerTotal(payload?.totalItems ?? payload?.totalCount ?? payload?.total ?? 0);
-      } catch (err) {
-        alert(err?.message || 'Không thể xóa giảng viên. Vui lòng thử lại sau.');
-      }
-    }
-  };
 
   const handleFilesExtracted = (files) => {
     setExtractedFiles(files);
@@ -528,7 +216,7 @@ const ExamFileManager = () => {
   if (!courseInfo) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+        <LoadingSpinner size="lg" color="orange" />
       </div>
     );
   }
@@ -544,9 +232,7 @@ const ExamFileManager = () => {
                 className="mr-4 p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                 title="Back to Courses"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
+                <ArrowLeftOutlined className="text-xl" />
               </Link>
               <div>
                 <div className="flex items-center">
@@ -563,22 +249,9 @@ const ExamFileManager = () => {
               </div>
             </div>
             <div className="hidden md:flex space-x-2">
-              <button className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              <button className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
-              <button className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
+              <Button type="text" icon={<QuestionCircleOutlined />} className="text-gray-500" />
+              <Button type="text" icon={<SettingOutlined />} className="text-gray-500" />
+              <Button type="text" icon={<UserOutlined />} className="text-gray-500" />
             </div>
           </div>
         </div>
@@ -598,9 +271,7 @@ const ExamFileManager = () => {
                     }`}
                 >
                   <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <CheckCircleOutlined className="mr-2" />
                     Assign to Lecturers
                   </div>
                 </button>
@@ -613,9 +284,7 @@ const ExamFileManager = () => {
                     }`}
                 >
                   <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                    <FileTextOutlined className="mr-2" />
                     View Exam Manager
                   </div>
                 </button>
@@ -627,9 +296,7 @@ const ExamFileManager = () => {
                     }`}
                 >
                   <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
+                    <FormOutlined className="mr-2" />
                     Assignment Manager
                   </div>
                 </button>
@@ -641,10 +308,20 @@ const ExamFileManager = () => {
                     }`}
                 >
                   <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
+                    <SafetyOutlined className="mr-2" />
                     Approve Scores
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('view-scores')}
+                  className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'view-scores'
+                      ? `border-orange-500 text-orange-600`
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center">
+                    <LineChartOutlined className="mr-2" />
+                    View Total Scores
                   </div>
                 </button>
                 <button
@@ -655,9 +332,7 @@ const ExamFileManager = () => {
                     }`}
                 >
                   <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                    <BarChartOutlined className="mr-2" />
                     Export Reports
                   </div>
                 </button>
@@ -673,14 +348,12 @@ const ExamFileManager = () => {
                     }`}
                 >
                   <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
+                    <TeamOutlined className="mr-2" />
                     Assigned Submissions
                   </div>
                 </button>
 
-                <button
+                {/* <button
                   onClick={() => setActiveTab('grade')}
                   className={`pb-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${activeTab === 'grade'
                       ? `border-orange-500 text-orange-600`
@@ -688,12 +361,10 @@ const ExamFileManager = () => {
                     }`}
                 >
                   <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
+                    <EditOutlined className="mr-2" />
                     Grade Submissions
                   </div>
-                </button>
+                </button> */}
               </>
             )}
           </nav>
@@ -710,455 +381,19 @@ const ExamFileManager = () => {
             <ExamManager />
           )}
           {activeTab === 'assign' && isAdmin() && (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center">
-                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-purple-100 mr-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Manage Lecturers</h3>
-
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => setShowAddLecturer(true)}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
-                  >
-                    Add Lecturer
-                  </button>
-                </div>
-              </div>
-
-              {lecturersError && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded">{lecturersError}</div>
-              )}
-
-              <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="px-4 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {lecturersLoading ? (
-                      <tr>
-                        <td colSpan="4" className="px-4 py-6 text-center text-gray-500">Loading...</td>
-                      </tr>
-                    ) : lecturers?.length ? (
-                      lecturers.map((lec, idx) => (
-                        <tr key={lec.id || idx}>
-                          <td className="px-4 py-3 text-sm text-gray-700">{(lecturerPage - 1) * lecturerPageSize + idx + 1}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{lec.name || lec.fullName || `${lec.firstName || ''} ${lec.lastName || ''}`.trim() || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{lec.email || '—'}</td>
-                          <td className="px-4 py-3 text-right space-x-2">
-                            <button
-                              onClick={() => handleViewLecturer(lec)}
-                              className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                              View
-                            </button>
-                            <button
-                              onClick={() => handleDeleteLecturer(lec.id)}
-                              className="px-3 py-1.5 border border-red-300 rounded-md text-sm text-red-600 hover:bg-red-50"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="4" className="px-4 py-6 text-center text-gray-500">No lecturers found</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-gray-600">
-                  Page {lecturerPage}
-                </div>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => setLecturerPage(p => Math.max(1, p - 1))}
-                    className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    disabled={lecturerPage === 1 || lecturersLoading}
-                  >
-                    Prev
-                  </button>
-                  <button
-                    onClick={() => setLecturerPage(p => p + 1)}
-                    className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    disabled={lecturersLoading || (lecturers.length < lecturerPageSize)}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-              {showAddLecturer && (
-                <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-                  <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Lecturer</h3>
-                    {createError && (
-                      <div className="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">{createError}</div>
-                    )}
-                    <form onSubmit={handleCreateLecturer} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Full name</label>
-                        <input
-                          type="text"
-                          value={createForm.fullName}
-                          onChange={(e) => setCreateForm(f => ({ ...f, fullName: e.target.value }))}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                        <input
-                          type="email"
-                          value={createForm.email}
-                          onChange={(e) => setCreateForm(f => ({ ...f, email: e.target.value }))}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                        <input
-                          type="password"
-                          value={createForm.password}
-                          onChange={(e) => setCreateForm(f => ({ ...f, password: e.target.value }))}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                        <select
-                          value={createForm.role}
-                          onChange={(e) => setCreateForm(f => ({ ...f, role: e.target.value }))}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-600"
-                          required
-                        >
-                          <option value="lecturer">lecturer</option>
-                          <option value="admin">admin</option>
-                        </select>
-                      </div>
-                      <div className="flex justify-end space-x-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => { setShowAddLecturer(false); setCreateError(''); }}
-                          className="px-3 py-2 border rounded-md text-sm text-gray-700 hover:bg-gray-50"
-                          disabled={creating}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm disabled:opacity-50"
-                          disabled={creating}
-                        >
-                          {creating ? 'Creating...' : 'Create'}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
-
-              {showLecturerDetail && (
-                <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-                  <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Lecturer Detail</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-600">Full name</span><span className="font-medium text-gray-900">{selectedLecturer?.fullName || selectedLecturer?.name || '—'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600">Email</span><span className="font-medium text-gray-900">{selectedLecturer?.email || '—'}</span></div>
-                      {selectedLecturer?.role && (
-                        <div className="flex justify-between"><span className="text-gray-600">Role</span><span className="font-medium text-gray-900">{selectedLecturer.role}</span></div>
-                      )}
-                    </div>
-                    <div className="flex justify-end pt-4">
-                      <button
-                        onClick={() => setShowLecturerDetail(false)}
-                        className="px-3 py-2 border rounded-md text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <LecturerManagementTab />
           )}
           {activeTab === 'approve' && isAdmin() && (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center">
-                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-purple-100 mr-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Approve Scores</h3>
-                    <p className="text-sm text-gray-500">Review and approve student scores graded by lecturers</p>
-                  </div>
-                </div>
-                <button
-                  onClick={fetchFinalScores}
-                  disabled={finalScoresLoading}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm disabled:opacity-50 flex items-center gap-2"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`h-4 w-4 ${finalScoresLoading ? 'animate-spin' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh
-                </button>
-              </div>
-
-              {finalScoresError && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded">{finalScoresError}</div>
-              )}
-
-              <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solution ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approved At</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {finalScoresLoading ? (
-                      <tr>
-                        <td colSpan="6" className="px-4 py-6 text-center text-gray-500">
-                          <div className="flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500"></div>
-                            <span className="ml-2">Loading final scores...</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : finalScores?.length ? (
-                      finalScores.map((score, idx) => (
-                        <tr key={score.id || score.solutionId || idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-700 font-mono">{score.solutionId || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{score.totalScore !== null && score.totalScore !== undefined ? score.totalScore : 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
-                            {score.approvedAt ? new Date(score.approvedAt).toLocaleString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }) : 'Not approved'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
-                            {score.createdAt ? new Date(score.createdAt).toLocaleString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }) : 'N/A'}
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              score.approvedAt 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {score.approvedAt ? 'Approved' : 'Pending Approval'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center">
-                            <div className="inline-flex items-center gap-2">
-                              {!score.approvedAt && (
-                                <button
-                                  onClick={() => {
-                                    // TODO: Implement approve action
-                                    alert('Approve functionality will be implemented');
-                                  }}
-                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
-                                >
-                                  Approve
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleViewMarkings(score.solutionId)}
-                                className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50"
-                              >
-                                View Details
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="6" className="px-4 py-6 text-center text-gray-500">No final scores found</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-gray-600">
-                  Page {finalScoresPage}
-                </div>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => setFinalScoresPage(p => Math.max(1, p - 1))}
-                    className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    disabled={finalScoresPage === 1 || finalScoresLoading}
-                  >
-                    Prev
-                  </button>
-                  <button
-                    onClick={() => setFinalScoresPage(p => p + 1)}
-                    className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    disabled={finalScoresLoading || (finalScores.length < finalScoresPageSize)}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ApproveScoresTab />
+          )}
+          {activeTab === 'view-scores' && isAdmin() && (
+            <ViewTotalScoresTab />
           )}
 
-          {/* Markings Detail Modal */}
-          {showMarkingsModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Marking Details</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Solution ID: <span className="font-mono">{selectedSolutionId}</span>
-                      {selectedAssignmentId && (
-                        <> | Assignment ID: <span className="font-mono">{selectedAssignmentId}</span></>
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowMarkingsModal(false);
-                      setMarkings([]);
-                      setSelectedSolutionId(null);
-                      setSelectedAssignmentId(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="px-6 py-4 overflow-y-auto flex-1">
-                  {markingsLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
-                      <span className="ml-3 text-gray-600">Loading marking details...</span>
-                    </div>
-                  ) : markingsError ? (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                      {markingsError}
-                    </div>
-                  ) : markings.length > 0 ? (
-                    <div className="space-y-4">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question ID</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {markings.map((marking, idx) => (
-                              <tr key={marking.id || idx} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 text-sm text-gray-700 font-mono">{marking.questionId || 'N/A'}</td>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                  {marking.score !== null && marking.score !== undefined ? marking.score : 'N/A'}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-500">
-                                  {marking.createdAt ? new Date(marking.createdAt).toLocaleString('en-US', {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  }) : 'N/A'}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Total Questions: {markings.length}</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            Total Score: {markings.reduce((sum, m) => sum + (parseFloat(m.score) || 0), 0).toFixed(1)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-gray-500">
-                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <p>No marking details found for this solution</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-                  <button
-                    onClick={() => {
-                      setShowMarkingsModal(false);
-                      setMarkings([]);
-                      setSelectedSolutionId(null);
-                      setSelectedAssignmentId(null);
-                    }}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'grade' && isLecturer() && (
+          {/* {activeTab === 'grade' && isLecturer() && (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
+                <EditOutlined className="text-blue-600 text-3xl" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Grade Student Assignments</h3>
               <p className="text-gray-600 mb-4">View assigned submissions and grade them with detailed scores and notes.</p>
@@ -1172,7 +407,7 @@ const ExamFileManager = () => {
                 View Assigned Submissions
               </button>
             </div>
-          )}
+          )} */}
           {activeTab === 'upload' && (
             <div className="p-6">
               <div className="mb-6">
@@ -1190,9 +425,7 @@ const ExamFileManager = () => {
                 <div className="mt-8 bg-orange-50 p-6 rounded-lg border border-orange-100">
                   <div className="flex">
                     <div className="flex-shrink-0 w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <ExclamationCircleOutlined className="text-orange-600 text-2xl" />
                     </div>
                     <div className="ml-4">
                       <h3 className="font-semibold text-orange-800">Instructions</h3>
@@ -1217,9 +450,7 @@ const ExamFileManager = () => {
               ) : (
                 <div className="p-12 text-center">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                    </svg>
+                    <FolderOutlined className="text-gray-500 text-3xl" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No Files Available</h3>
                   <p className="text-gray-600 mb-6">Upload a ZIP file to view and manage exam files</p>
@@ -1237,9 +468,7 @@ const ExamFileManager = () => {
           {activeTab === 'grades' && (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
+                <EditOutlined className="text-gray-500 text-3xl" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Grades Coming Soon</h3>
               <p className="text-gray-600">Your grades will appear here after your submission is graded</p>
@@ -1248,9 +477,7 @@ const ExamFileManager = () => {
           {activeTab === 'grades' && isLecturer() && (
             <div className="p-12 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
+                <EditOutlined className="text-gray-500 text-3xl" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Grade Management</h3>
               <p className="text-gray-600 mb-4">Use the Student Submissions tab to view and grade student work</p>
@@ -1269,120 +496,8 @@ const ExamFileManager = () => {
             </div>
           )}
 
-          {activeTab === 'reports' && isAdmin() && (
-            <div className="p-12">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 text-center">Course Reports</h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Submission Statistics</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">Submitted</span>
-                        <span className="text-sm font-medium text-gray-900">4 students (80%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: '80%' }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">Graded</span>
-                        <span className="text-sm font-medium text-gray-900">2 students (40%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-green-600 h-2 rounded-full" style={{ width: '40%' }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">Late Submissions</span>
-                        <span className="text-sm font-medium text-gray-900">1 student (20%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '20%' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Grade Distribution</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">9-10</span>
-                        <span className="text-sm font-medium text-gray-900">1 student (50%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-green-600 h-2 rounded-full" style={{ width: '50%' }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">8-8.9</span>
-                        <span className="text-sm font-medium text-gray-900">1 student (50%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: '50%' }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">7-7.9</span>
-                        <span className="text-sm font-medium text-gray-900">0 students (0%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-blue-400 h-2 rounded-full" style={{ width: '0%' }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">&lt; 7</span>
-                        <span className="text-sm font-medium text-gray-900">0 students (0%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-red-500 h-2 rounded-full" style={{ width: '0%' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending Actions</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-100 rounded-lg">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">2 submissions need grading</p>
-                        <p className="text-xs text-gray-500">Last submission: 1 day ago</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-
-
-          {activeTab === 'reports' && isLecturer() && (
-            <div className="p-12 text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Reports Coming Soon</h3>
-              <p className="text-gray-600">This feature is currently under development</p>
-            </div>
+          {activeTab === 'reports' && (
+            <ReportsTab isLecturer={isLecturer()} />
           )}
         </div>
       </div>

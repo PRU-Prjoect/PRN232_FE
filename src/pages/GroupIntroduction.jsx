@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
@@ -46,15 +47,7 @@ const GroupIntroduction = () => {
           to="/" 
           className="flex items-center space-x-2 bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 rounded-full shadow-md transition-all duration-300 group"
         >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            className="h-5 w-5 text-orange-500 group-hover:-translate-x-1 transition-transform" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
+          <ArrowLeftOutlined className="text-orange-500 group-hover:-translate-x-1 transition-transform" />
           <span className="font-medium">Trang Chủ</span>
         </Link>
       </motion.div>
@@ -158,13 +151,6 @@ const GroupIntroduction = () => {
             Chúng tôi luôn sẵn sàng hợp tác và tiếp nhận ý kiến đóng góp. 
             Hãy liên hệ với chúng tôi để trao đổi thêm về dự án.
           </p>
-          {/* <motion.a 
-            href="mailto:group6.swd392@fpt.edu.vn"
-            whileHover={{ scale: 1.05 }}
-            className="inline-block bg-orange-500 text-white px-6 py-3 rounded-lg shadow-md hover:bg-orange-600 transition"
-          >
-            Gửi Email
-          </motion.a> */}
         </div>
       </motion.div>
     </div>

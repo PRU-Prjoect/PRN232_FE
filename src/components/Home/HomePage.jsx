@@ -1,5 +1,5 @@
 // src/pages/HomePage.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useScrollAnimation from "../../hooks/useScrollAnimation";
 import { useAuth } from "../../contexts/AuthContext";
@@ -38,10 +38,9 @@ const courses = [
 const HomePage = () => {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const navigate = useNavigate();
-  const { user, isLoggedIn, logout, isLecturer, isAdmin } = useAuth();
+  const { user, isLoggedIn, isLecturer, isAdmin } = useAuth();
   
   const handleLogout = () => {
-    logout();
     navigate("/login");
   };
 
@@ -167,9 +166,6 @@ const HomePage = () => {
               </div>
             ) : (
               <>
-                {/* <Link to="/register" className="px-5 py-2 border border-orange-500 text-orange-500 hover:bg-orange-50 rounded-lg font-medium shadow-sm transition inline-block">
-                  Register
-                </Link> */}
                 <Link to="/login" className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium shadow-sm transition inline-block">
                   Login
                 </Link>
@@ -244,14 +240,6 @@ const HomePage = () => {
                   >
                     View Courses
                   </a>
-                  {/* {isAdmin() && (
-                    <Link
-                      to="/assignments"
-                      className="inline-block px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-lg shadow-sm transition"
-                    >
-                      Assignment Manager
-                    </Link>
-                  )} */}
                 </div>
               </div>
             );

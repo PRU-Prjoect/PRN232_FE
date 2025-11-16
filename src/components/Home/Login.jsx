@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { authService } from "../../services/index.js";
+// import { authService } from "../../services/index.js";
 
 const Login = () => {
   const [credentials, setCredentials] = useState({
@@ -26,7 +26,6 @@ const Login = () => {
         setRememberMe(true);
       } catch (error) {
         console.error("Error loading saved credentials:", error);
-        // Fallback to old format (just email)
         const savedEmail = localStorage.getItem("rememberedEmail");
         if (savedEmail) {
           setCredentials((prev) => ({
@@ -53,7 +52,7 @@ const Login = () => {
     
     if (!isChecked) {
       localStorage.removeItem("rememberedCredentials");
-      localStorage.removeItem("rememberedEmail"); // Remove old format if exists
+      localStorage.removeItem("rememberedEmail"); 
     }
   };
 
@@ -73,16 +72,14 @@ const Login = () => {
       
       if (result.success) {
         if (rememberMe) {
-          // Save both email and password
           localStorage.setItem("rememberedCredentials", JSON.stringify({
             email: credentials.email,
             password: credentials.password,
           }));
-          // Remove old format if exists
           localStorage.removeItem("rememberedEmail");
         } else {
           localStorage.removeItem("rememberedCredentials");
-          localStorage.removeItem("rememberedEmail"); // Remove old format if exists
+          localStorage.removeItem("rememberedEmail"); 
         }
         
         navigate("/");
@@ -118,15 +115,6 @@ const Login = () => {
             <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
               Sign in to your account
             </h2>
-            {/* <p className="mt-2 text-center text-sm text-gray-600">
-              Or{" "}
-              <Link
-                to="/register"
-                className="font-medium text-orange-600 hover:text-orange-500"
-              >
-                create a new account
-              </Link>
-            </p> */}
           </div>
 
           {error && (
@@ -217,7 +205,6 @@ const Login = () => {
                 </a>
               </div>
             </div>
-
             <div>
               <button
                 type="submit"
@@ -227,18 +214,6 @@ const Login = () => {
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </button>
             </div>
-            
-            {/* <div className="text-center mt-4">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
-                <Link
-                  to="/register"
-                  className="font-medium text-orange-600 hover:text-orange-500"
-                >
-                  Register now
-                </Link>
-              </p>
-            </div> */}
           </form>
         </div>
       </div>

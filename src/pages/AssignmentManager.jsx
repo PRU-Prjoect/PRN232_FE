@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeftOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { lecturerService, examService, solutionService, assignmentService } from '../services';
+import { parseResponseData } from '../utils/apiHelpers';
+import { getStatusColor, getStatusText } from '../utils/statusHelpers';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorAlert from '../components/common/ErrorAlert';
+import SuccessAlert from '../components/common/SuccessAlert';
+import SolutionsTable from '../components/Admin/SolutionsTable';
+import LecturerSelector from '../components/Admin/LecturerSelector';
 
 const AssignmentManager = () => {
-  const { user, isLoggedIn, isAdmin } = useAuth();
+  const { user, isLoggedIn, isAdmin, loading: authLoading } = useAuth();
   const [lecturers, setLecturers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -12,53 +20,44 @@ const AssignmentManager = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [selectedLecturers, setSelectedLecturers] = useState([]); // Array of lecturer IDs
+  const [selectedLecturers, setSelectedLecturers] = useState([]); 
   const [selectedSubmissions, setSelectedSubmissions] = useState([]);
   const [selectedExams, setSelectedExams] = useState([]);
-  const [expandedExams, setExpandedExams] = useState({}); // Track which exams have expanded dropdowns
-  const [examSolutions, setExamSolutions] = useState({}); // Store solutions for each exam
-  const [loadingSolutions, setLoadingSolutions] = useState({}); // Track loading state for each exam
-  const [selectedSolutions, setSelectedSolutions] = useState({}); // Store selected solutions by examId: { [examId]: [solutionId1, ...] }
+  const [expandedExams, setExpandedExams] = useState({}); 
+  const [examSolutions, setExamSolutions] = useState({}); 
+  const [loadingSolutions, setLoadingSolutions] = useState({}); 
+  const [selectedSolutions, setSelectedSolutions] = useState({});
+  const [solutionAssignments, setSolutionAssignments] = useState({}); 
 
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
     if (!isLoggedIn) {
       window.location.href = '/login';
       return;
     }
-    
+
     loadData();
-  }, [isLoggedIn]);
+  }, [isLoggedIn, authLoading]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Load lecturers
       const lecturerData = await lecturerService.getLecturers({ pageIndex: 1, pageSize: 100 });
-      // API response structure: { success: true, data: { items: [...] } }
-      const lecturerItems = lecturerData?.data?.items || lecturerData?.items || [];
+      const lecturerItems = parseResponseData(lecturerData);
       setLecturers(lecturerItems);
 
-      // Load exams from API
-      const examData = await examService.getExams({ 
-        pageIndex: 1, 
-        pageSize: 100 
+      const examData = await examService.getExams({
+        pageIndex: 1,
+        pageSize: 100
       });
-      // API response structure: { items: [...], totalItems, pageNumber, pageSize, totalPages }
-      // Or: { success: true, data: { items: [...] } }
-      // Or: Array directly
+
       console.log('Exam API Response:', examData);
-      let examItems = [];
-      if (Array.isArray(examData)) {
-        examItems = examData;
-      } else if (examData?.data?.items) {
-        examItems = examData.data.items;
-      } else if (examData?.items) {
-        examItems = examData.items;
-      } else if (examData?.data && Array.isArray(examData.data)) {
-        examItems = examData.data;
-      }
+      const examItems = parseResponseData(examData);
       setExams(examItems);
       console.log('Exams loaded:', examItems);
 
@@ -87,21 +86,18 @@ const AssignmentManager = () => {
   const handleLecturerChange = (index, lecturerId) => {
     setSelectedLecturers(prev => {
       const newLecturers = [...prev];
-      
+
       if (lecturerId === '') {
-        // Deselecting - remove this lecturer
         newLecturers.splice(index, 1);
       } else {
-        // Selecting a lecturer
         if (index < newLecturers.length) {
-          // Update existing selection
           newLecturers[index] = lecturerId;
         } else {
           // Add new selection
           newLecturers.push(lecturerId);
         }
       }
-      
+
       return newLecturers;
     });
   };
@@ -121,9 +117,20 @@ const AssignmentManager = () => {
       return;
     }
 
-    // Kiểm tra nếu chọn kỳ thi
-    if (selectedExams.length === 0) {
-      setError('Vui lòng chọn ít nhất một kỳ thi');
+    // Tính tổng số solutions đã chọn
+    const totalSelectedSolutions = Object.values(selectedSolutions).reduce(
+      (sum, solutionIds) => sum + (solutionIds?.length || 0),
+      0
+    );
+
+    // Kiểm tra nếu không chọn kỳ thi và không chọn solution
+    if (selectedExams.length === 0 && totalSelectedSolutions === 0) {
+      setError('Vui lòng chọn ít nhất một kỳ thi hoặc một solution');
+      return;
+    }
+
+    if (totalSelectedSolutions > 0 && selectedLecturers.length > 1) {
+      setError('Khi phân công solution, chỉ có thể chọn 1 giảng viên');
       return;
     }
 
@@ -131,115 +138,215 @@ const AssignmentManager = () => {
       setLoading(true);
       setError('');
       setSuccessMessage('');
-      
-      console.log('Selected exams:', selectedExams);
-      console.log('Selected lecturers:', selectedLecturers);
-      
-      // Gọi API cho mỗi kỳ thi được chọn
-      const promises = selectedExams.map(async (examId) => {
-        try {
-          // Tìm exam để lấy thông tin đầy đủ
-          const exam = exams.find(e => (e.id || e.examId) === examId);
-          console.log(`Assigning exam ${examId}:`, exam);
-          console.log(`Request payload:`, { examId, lecturerIds: selectedLecturers });
-          
-          const response = await assignmentService.assignExam(examId, selectedLecturers);
-          console.log(`Assignment successful for exam ${examId}:`, response);
-          return { examId, success: true, data: response };
-        } catch (err) {
-          console.error(`Failed to assign exam ${examId}:`, err);
-          // Extract error message from response
-          let errorMessage = 'Failed to assign';
-          if (err?.message) {
-            errorMessage = err.message;
-          } else if (err?.response?.data?.error?.details) {
-            errorMessage = err.response.data.error.details;
-          } else if (err?.response?.data?.error?.title) {
-            errorMessage = err.response.data.error.title;
-          }
-          return { examId, success: false, error: errorMessage };
-        }
-      });
 
-      const results = await Promise.all(promises);
-      
-      // Kiểm tra kết quả
+      console.log('Selected exams:', selectedExams);
+      console.log('Selected solutions:', selectedSolutions);
+      console.log('Selected lecturers:', selectedLecturers);
+
+      const allPromises = [];
+      const assignmentDetails = [];
+
+      if (totalSelectedSolutions > 0) {
+        const lecturerId = selectedLecturers[0]; 
+        const alreadyAssignedSolutions = [];
+        Object.entries(selectedSolutions).forEach(([examId, solutionIds]) => {
+          if (solutionIds && solutionIds.length > 0) {
+            solutionIds.forEach(solutionId => {
+              const assignment = solutionAssignments[solutionId];
+              if (assignment && assignment.lecturerId === lecturerId) {
+                alreadyAssignedSolutions.push({
+                  solutionId,
+                  lecturerName: assignment.lecturerName
+                });
+              }
+            });
+          }
+        });
+
+        if (alreadyAssignedSolutions.length > 0) {
+          const errorMessages = alreadyAssignedSolutions.map(item => {
+            const solution = Object.values(examSolutions)
+              .flat()
+              .find(s => (s.id || s.solutionId) === item.solutionId);
+            return `Solution "${solution?.studentCode || item.solutionId}" đã được giao cho "${item.lecturerName}"`;
+          }).join('\n');
+          setError(`Không thể phân công các solution đã được giao cho giảng viên này:\n${errorMessages}`);
+          setLoading(false);
+          return;
+        }
+
+        // Lặp qua tất cả các exam có solutions được chọn
+        Object.entries(selectedSolutions).forEach(([examId, solutionIds]) => {
+          if (solutionIds && solutionIds.length > 0) {
+            const exam = exams.find(e => (e.id || e.examId) === examId);
+
+            solutionIds.forEach(solutionId => {
+              const promise = (async () => {
+                try {
+                  console.log(`Assigning solution ${solutionId} to lecturer ${lecturerId}`);
+                  const response = await assignmentService.assignSolution(solutionId, lecturerId, examId);
+                  console.log(`Assignment successful for solution ${solutionId}:`, response);
+
+                  const lecturer = lecturers.find(l => l.id === lecturerId);
+                  setSolutionAssignments(prev => ({
+                    ...prev,
+                    [solutionId]: {
+                      lecturerId,
+                      lecturerName: lecturer?.fullName || lecturer?.name || 'Unknown'
+                    }
+                  }));
+
+                  return {
+                    type: 'solution',
+                    solutionId,
+                    examId,
+                    lecturerId,
+                    success: true,
+                    data: response
+                  };
+                } catch (err) {
+                  console.error(`Failed to assign solution ${solutionId}:`, err);
+                  let errorMessage = 'Failed to assign';
+                  if (err?.message) {
+                    errorMessage = err.message;
+                  } else if (err?.response?.data?.error?.details) {
+                    errorMessage = err.response.data.error.details;
+                  } else if (err?.response?.data?.error?.title) {
+                    errorMessage = err.response.data.error.title;
+                  }
+                  return {
+                    type: 'solution',
+                    solutionId,
+                    examId,
+                    lecturerId,
+                    success: false,
+                    error: errorMessage
+                  };
+                }
+              })();
+              allPromises.push(promise);
+            });
+          }
+        });
+      }
+      if (selectedExams.length > 0) {
+        const examPromises = selectedExams.map(async (examId) => {
+          try {
+            const exam = exams.find(e => (e.id || e.examId) === examId);
+            console.log(`Assigning exam ${examId}:`, exam);
+            console.log(`Request payload:`, { examId, lecturerIds: selectedLecturers });
+
+            const response = await assignmentService.assignExam(examId, selectedLecturers);
+            console.log(`Assignment successful for exam ${examId}:`, response);
+            return {
+              type: 'exam',
+              examId,
+              success: true,
+              data: response
+            };
+          } catch (err) {
+            console.error(`Failed to assign exam ${examId}:`, err);
+            let errorMessage = 'Failed to assign';
+            if (err?.message) {
+              errorMessage = err.message;
+            } else if (err?.response?.data?.error?.details) {
+              errorMessage = err.response.data.error.details;
+            } else if (err?.response?.data?.error?.title) {
+              errorMessage = err.response.data.error.title;
+            }
+            return {
+              type: 'exam',
+              examId,
+              success: false,
+              error: errorMessage
+            };
+          }
+        });
+        allPromises.push(...examPromises);
+      }
+
+      const results = await Promise.all(allPromises);
       const failedResults = results.filter(r => !r.success);
       const successResults = results.filter(r => r.success);
-      
+
       if (failedResults.length > 0) {
         const errorMessages = failedResults.map(r => {
-          const exam = exams.find(e => (e.id || e.examId) === r.examId);
-          return `Kỳ thi "${exam?.name || r.examId}": ${r.error}`;
+          if (r.type === 'solution') {
+            const solution = Object.values(examSolutions)
+              .flat()
+              .find(s => (s.id || s.solutionId) === r.solutionId);
+            return `Solution "${solution?.studentId || r.solutionId}": ${r.error}`;
+          } else {
+            const exam = exams.find(e => (e.id || e.examId) === r.examId);
+            return `Kỳ thi "${exam?.name || r.examId}": ${r.error}`;
+          }
         }).join('\n');
         setError(`Một số phân công thất bại:\n${errorMessages}`);
       }
 
-      // Chỉ thêm assignments cho những kỳ thi thành công
       if (successResults.length > 0) {
-        const newAssignments = [];
-        const assignmentDetails = [];
-        
-        successResults.forEach(result => {
-          const examId = result.examId;
-          const exam = exams.find(e => (e.id || e.examId) === examId);
-          const assignedLecturers = [];
-          
-          selectedLecturers.forEach(lecturerId => {
-            const lecturer = lecturers.find(l => l.id === lecturerId);
-            const lecturerName = lecturer?.fullName || lecturer?.name || 'Unknown';
-            assignedLecturers.push(lecturerName);
-            
-            newAssignments.push({
-              id: `${examId}-${lecturerId}-${Date.now()}`,
-              examId: examId,
-              examName: exam?.name || 'N/A',
-              lecturerId: lecturerId,
-              lecturerName: lecturerName,
-              status: 'assigned'
+        const solutionSuccessResults = successResults.filter(r => r.type === 'solution');
+        const examSuccessResults = successResults.filter(r => r.type === 'exam');
+
+        if (solutionSuccessResults.length > 0) {
+          const lecturer = lecturers.find(l => l.id === solutionSuccessResults[0].lecturerId);
+          const lecturerName = lecturer?.fullName || lecturer?.name || 'Unknown';
+          const solutionCount = solutionSuccessResults.length;
+          assignmentDetails.push({
+            type: 'solution',
+            lecturerName,
+            count: solutionCount
+          });
+        }
+
+        if (examSuccessResults.length > 0) {
+          examSuccessResults.forEach(result => {
+            const examId = result.examId;
+            const exam = exams.find(e => (e.id || e.examId) === examId);
+            const assignedLecturers = selectedLecturers.map(lecturerId => {
+              const lecturer = lecturers.find(l => l.id === lecturerId);
+              return lecturer?.fullName || lecturer?.name || 'Unknown';
+            });
+
+            const submissionCount = result.data?.submissionCount || result.data?.assignedSubmissions?.length || 'N/A';
+            assignmentDetails.push({
+              type: 'exam',
+              examName: exam?.name || examId,
+              subjectCode: exam?.subjectCode || '',
+              lecturers: assignedLecturers,
+              submissionCount: submissionCount
             });
           });
-          
-          // Lấy thông tin về số bài làm từ response nếu có
-          const submissionCount = result.data?.submissionCount || result.data?.assignedSubmissions?.length || 'N/A';
-          assignmentDetails.push({
-            examName: exam?.name || examId,
-            subjectCode: exam?.subjectCode || '',
-            lecturers: assignedLecturers,
-            submissionCount: submissionCount
-          });
-        });
-        
-        setAssignments(prev => [...prev, ...newAssignments]);
-        
-        // Tạo thông báo thành công chi tiết
+        }
+
         const successMessages = assignmentDetails.map(detail => {
-          const lecturersList = detail.lecturers.join(', ');
-          const submissionInfo = detail.submissionCount !== 'N/A' 
-            ? ` (${detail.submissionCount} bài làm)` 
-            : '';
-          const examDisplayName = detail.subjectCode 
-            ? `${detail.examName} (${detail.subjectCode})`
-            : detail.examName;
-          return `• Kỳ thi "${examDisplayName}": ${lecturersList}${submissionInfo}`;
+          if (detail.type === 'solution') {
+            return `• ${detail.count} solution(s) đã được phân công cho "${detail.lecturerName}"`;
+          } else {
+            const lecturersList = detail.lecturers.join(', ');
+            const submissionInfo = detail.submissionCount !== 'N/A'
+              ? ` (${detail.submissionCount} bài làm)`
+              : '';
+            const examDisplayName = detail.subjectCode
+              ? `${detail.examName} (${detail.subjectCode})`
+              : detail.examName;
+            return `• Kỳ thi "${examDisplayName}": ${lecturersList}${submissionInfo}`;
+          }
         });
-        
+
         setSuccessMessage(`Phân công thành công!\n\n${successMessages.join('\n')}`);
       }
 
-      // Reset selections nếu tất cả đều thành công
       if (failedResults.length === 0) {
         setSelectedLecturers([]);
         setSelectedExams([]);
         setSelectedSolutions({});
-        
-        // Reload data để lấy assignments mới nhất từ server
         await loadData();
       }
-      
+
     } catch (err) {
       console.error('Error assigning:', err);
-      let errorMessage = 'Failed to assign exams';
+      let errorMessage = 'Failed to assign';
       if (err?.message) {
         errorMessage = err.message;
       } else if (err?.response?.data?.error?.details) {
@@ -252,7 +359,7 @@ const AssignmentManager = () => {
   };
 
   const handleSubmissionSelect = (submissionId) => {
-    setSelectedSubmissions(prev => 
+    setSelectedSubmissions(prev =>
       prev.includes(submissionId)
         ? prev.filter(id => id !== submissionId)
         : [...prev, submissionId]
@@ -260,11 +367,55 @@ const AssignmentManager = () => {
   };
 
   const handleExamSelect = (examId) => {
-    setSelectedExams(prev => 
+    setSelectedExams(prev =>
       prev.includes(examId)
         ? prev.filter(id => id !== examId)
         : [...prev, examId]
     );
+  };
+
+  const loadSolutionAssignments = async (solutionIds) => {
+    try {
+      const assignmentPromises = solutionIds.map(async (solutionId) => {
+        try {
+          const result = await assignmentService.getAssignments({
+            solutionId: solutionId,
+            pageIndex: 1,
+            pageSize: 100
+          });
+          const assignments = parseResponseData(result);
+          if (assignments && assignments.length > 0) {
+            const assignment = assignments[0];
+            const lecturerId = assignment.lecturerId || assignment.lecturer?.id;
+            const lecturer = lecturers.find(l => l.id === lecturerId);
+            return {
+              solutionId,
+              lecturerId,
+              lecturerName: lecturer?.fullName || lecturer?.name || assignment.lecturer?.fullName || assignment.lecturer?.name || 'Unknown'
+            };
+          }
+          return null;
+        } catch (err) {
+          console.error(`Error loading assignment for solution ${solutionId}:`, err);
+          return null;
+        }
+      });
+
+      const assignmentResults = await Promise.all(assignmentPromises);
+
+      const newSolutionAssignments = { ...solutionAssignments };
+      assignmentResults.forEach(result => {
+        if (result) {
+          newSolutionAssignments[result.solutionId] = {
+            lecturerId: result.lecturerId,
+            lecturerName: result.lecturerName
+          };
+        }
+      });
+      setSolutionAssignments(newSolutionAssignments);
+    } catch (err) {
+      console.error('Error loading solution assignments:', err);
+    }
   };
 
   const toggleExamDropdown = async (examId) => {
@@ -282,18 +433,17 @@ const AssignmentManager = () => {
           examId: examId
         });
         let solutions = [];
-        if (Array.isArray(response)) {
-          solutions = response;
-        } else if (response?.data && Array.isArray(response.data)) {
-          solutions = response.data;
-        } else if (response?.items && Array.isArray(response.items)) {
-          solutions = response.items;
-        }
-        
+        solutions = parseResponseData(response);
+
         setExamSolutions(prev => ({
           ...prev,
           [examId]: solutions
         }));
+
+        const solutionIds = solutions.map(s => s.id || s.solutionId).filter(Boolean);
+        if (solutionIds.length > 0) {
+          await loadSolutionAssignments(solutionIds);
+        }
       } catch (err) {
         console.error(`Error loading solutions for exam ${examId}:`, err);
         setExamSolutions(prev => ({
@@ -307,6 +457,15 @@ const AssignmentManager = () => {
   };
 
   const handleSolutionSelect = (examId, solutionId) => {
+    const assignment = solutionAssignments[solutionId];
+    if (assignment && selectedLecturers.length > 0) {
+      const selectedLecturerId = selectedLecturers[0];
+      if (assignment.lecturerId === selectedLecturerId) {
+        setError(`Solution này đã được giao cho "${assignment.lecturerName}" rồi. Không thể phân công lại cho cùng giảng viên.`);
+        return;
+      }
+    }
+
     setSelectedSolutions(prev => {
       const examSolutions = prev[examId] || [];
       const isSelected = examSolutions.includes(solutionId);
@@ -321,39 +480,34 @@ const AssignmentManager = () => {
 
   const handleSelectAllSolutions = (examId) => {
     const solutions = examSolutions[examId] || [];
+    const selectedLecturerId = selectedLecturers.length > 0 ? selectedLecturers[0] : null;
+    const availableSolutions = solutions.filter(sol => {
+      const solutionId = sol.id || sol.solutionId;
+      const assignment = solutionAssignments[solutionId];
+      if (assignment && selectedLecturerId && assignment.lecturerId === selectedLecturerId) {
+        return false;
+      }
+      return true;
+    });
+
     const currentSelected = selectedSolutions[examId] || [];
-    const allSelected = solutions.length > 0 && currentSelected.length === solutions.length;
-    
+    const allSelected = availableSolutions.length > 0 &&
+      currentSelected.length === availableSolutions.length &&
+      availableSolutions.every(sol => currentSelected.includes(sol.id || sol.solutionId));
+
     setSelectedSolutions(prev => ({
       ...prev,
       [examId]: allSelected
         ? []
-        : solutions.map(sol => sol.id || sol.solutionId)
+        : availableSolutions.map(sol => sol.id || sol.solutionId)
     }));
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'assigned': return 'bg-blue-100 text-blue-800';
-      case 'graded': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'pending': return 'Chờ phân công';
-      case 'assigned': return 'Đã phân công';
-      case 'graded': return 'Đã chấm';
-      default: return 'Không xác định';
-    }
-  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+        <LoadingSpinner size="lg" color="orange" />
       </div>
     );
   }
@@ -364,14 +518,12 @@ const AssignmentManager = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <Link 
-                to="/" 
+              <Link
+                to="/"
                 className="mr-4 p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                 title="Back to Home"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
+                <ArrowLeftOutlined className="text-xl" />
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Assignment Manager</h1>
@@ -395,9 +547,7 @@ const AssignmentManager = () => {
 
       <div className="container mx-auto px-4 py-8">
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded whitespace-pre-line">
-            {error}
-          </div>
+          <ErrorAlert message={error} className="mb-6 whitespace-pre-line" />
         )}
         {successMessage && (
           <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded whitespace-pre-line">
@@ -413,9 +563,7 @@ const AssignmentManager = () => {
                 className="ml-4 text-green-600 hover:text-green-800 flex-shrink-0"
                 title="Đóng"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <CloseOutlined />
               </button>
             </div>
           </div>
@@ -424,67 +572,30 @@ const AssignmentManager = () => {
         {/* Phân công bài tập */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Phân công bài tập</h2>
-          
+
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Chọn giảng viên</label>
-            <div className="space-y-3">
-              {/* Render dropdowns: one for each selected lecturer + one empty for next selection */}
-              {[...selectedLecturers.map(id => id), ''].map((selectedLecturerId, index) => {
-                // Get available lecturers for this dropdown (exclude already selected ones)
-                const availableLecturers = lecturers
-                  .filter(lecturer => lecturer.fullName)
-                  .filter(lecturer => {
-                    // Only show lecturers with role "lecturer", exclude "admin"
-                    const role = lecturer.role || lecturer.roles || '';
-                    return role === 'lecturer' || role.toLowerCase() === 'lecturer';
-                  })
-                  .filter(lecturer => {
-                    // Exclude all lecturers that are selected in other dropdowns
-                    return !selectedLecturers.some((id, idx) => idx !== index && id === lecturer.id);
-                  });
-
-                // Only show the last empty dropdown if there are available lecturers
-                const isLastEmpty = index === selectedLecturers.length && selectedLecturerId === '';
-                if (isLastEmpty && availableLecturers.length === 0) {
-                  return null; // Don't show empty dropdown if no lecturers available
-                }
-
-                return (
-                  <div key={index} className="flex items-center gap-2">
-                    <select
-                      value={selectedLecturerId}
-                      onChange={(e) => handleLecturerChange(index, e.target.value)}
-                      className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    >
-                      <option value="">-- Chọn giảng viên --</option>
-                      {availableLecturers.map(lecturer => (
-                        <option key={lecturer.id} value={lecturer.id}>
-                          {lecturer.fullName}
-                        </option>
-                      ))}
-                    </select>
-                    {index < selectedLecturers.length && selectedLecturerId !== '' && (
-                      <button
-                        onClick={() => handleRemoveLecturer(index)}
-                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
-                        title="Xóa giảng viên"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <LecturerSelector
+              lecturers={lecturers}
+              selectedLecturers={selectedLecturers}
+              onLecturerChange={handleLecturerChange}
+              onRemoveLecturer={handleRemoveLecturer}
+            />
           </div>
-          
+
           <div className="flex items-center justify-between mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Kỳ thi đã chọn: {selectedExams.length}
-              </label>
+              <div className="mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Kỳ thi đã chọn: {selectedExams.length}
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Solutions đã chọn: {Object.values(selectedSolutions).reduce(
+                    (sum, solutionIds) => sum + (solutionIds?.length || 0),
+                    0
+                  )}
+                </label>
+              </div>
               {selectedLecturers.length > 0 && (
                 <p className="text-sm text-gray-600">
                   Giảng viên đã chọn: {selectedLecturers.map(id => {
@@ -496,7 +607,14 @@ const AssignmentManager = () => {
             </div>
             <button
               onClick={handleAssign}
-              disabled={selectedLecturers.length === 0 || selectedExams.length === 0 || loading}
+              disabled={
+                selectedLecturers.length === 0 ||
+                (selectedExams.length === 0 && Object.values(selectedSolutions).reduce(
+                  (sum, solutionIds) => sum + (solutionIds?.length || 0),
+                  0
+                ) === 0) ||
+                loading
+              }
               className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Đang phân công...' : 'Phân công'}
@@ -576,11 +694,10 @@ const AssignmentManager = () => {
                             {exam.examDate ? new Date(exam.examDate).toLocaleDateString('vi-VN') : 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              exam.isActive 
-                                ? 'bg-green-100 text-green-800' 
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${exam.isActive
+                                ? 'bg-green-100 text-green-800'
                                 : 'bg-gray-100 text-gray-800'
-                            }`}>
+                              }`}>
                               {exam.isActive ? 'Active' : 'No Active'}
                             </span>
                           </td>
@@ -596,7 +713,7 @@ const AssignmentManager = () => {
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
                               >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                <DownOutlined />
                               </svg>
                             </button>
                           </td>
@@ -604,83 +721,16 @@ const AssignmentManager = () => {
                         {isExpanded && (
                           <tr>
                             <td colSpan="9" className="px-6 py-4 bg-gray-50">
-                              {isLoadingSolutions ? (
-                                <div className="flex items-center justify-center py-4">
-                                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-orange-500"></div>
-                                  <span className="ml-2 text-sm text-gray-600">Đang tải solutions...</span>
-                                </div>
-                              ) : solutions.length > 0 ? (
-                                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-                                    <h3 className="text-sm font-semibold text-gray-900">
-                                      Solutions ({solutions.length})
-                                    </h3>
-                                  </div>
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                      <thead className="bg-gray-100">
-                                        <tr>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">
-                                            <input
-                                              type="checkbox"
-                                              checked={solutions.length > 0 && (selectedSolutions[examId] || []).length === solutions.length}
-                                              onChange={() => handleSelectAllSolutions(examId)}
-                                              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                            />
-                                          </th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">STT</th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Mã sinh viên</th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Path</th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Ngày tạo</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="bg-white divide-y divide-gray-200">
-                                        {solutions.map((solution, solIndex) => {
-                                          const solutionId = solution.id || solution.solutionId;
-                                          const isSelected = (selectedSolutions[examId] || []).includes(solutionId);
-                                          return (
-                                            <tr key={solutionId || solIndex} className={`hover:bg-gray-50 ${isSelected ? 'bg-orange-50' : ''}`}>
-                                              <td className="px-4 py-2 whitespace-nowrap">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={isSelected}
-                                                  onChange={() => handleSolutionSelect(examId, solutionId)}
-                                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                                />
-                                              </td>
-                                              <td className="px-4 py-2 text-sm text-gray-900">{solIndex + 1}</td>
-                                              <td className="px-4 py-2 text-sm text-gray-900">
-                                                {solution.studentCode || 'N/A'}
-                                              </td>
-                                              <td className="px-4 py-2 text-sm text-gray-600">
-                                                <div className="max-w-xs truncate" title={solution.path || 'N/A'}>
-                                                  {solution.path || 'N/A'}
-                                                </div>
-                                              </td>
-                                              <td className="px-4 py-2 text-sm text-gray-900">
-                                                {solution.createdAt 
-                                                  ? new Date(solution.createdAt).toLocaleDateString('vi-VN')
-                                                  : 'N/A'}
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                  {(selectedSolutions[examId] || []).length > 0 && (
-                                    <div className="px-4 py-2 bg-orange-50 border-t border-gray-200">
-                                      <p className="text-sm text-gray-700">
-                                        <span className="font-medium">Đã chọn {(selectedSolutions[examId] || []).length}/{solutions.length} solution(s)</span>
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="text-center py-4 text-sm text-gray-500">
-                                  Không có solution nào cho kỳ thi này
-                                </div>
-                              )}
+                              <SolutionsTable
+                                solutions={solutions}
+                                isLoading={isLoadingSolutions}
+                                selectedSolutions={selectedSolutions[examId] || []}
+                                onSelectSolution={handleSolutionSelect}
+                                onSelectAll={() => handleSelectAllSolutions(examId)}
+                                examId={examId}
+                                solutionAssignments={solutionAssignments}
+                                selectedLecturerId={selectedLecturers.length > 0 ? selectedLecturers[0] : null}
+                              />
                             </td>
                           </tr>
                         )}

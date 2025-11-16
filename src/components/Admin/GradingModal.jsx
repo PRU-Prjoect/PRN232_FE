@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { CloseOutlined } from '@ant-design/icons';
 import { partService } from '../../services';
+import { parseResponseData } from '../../utils/apiHelpers';
+import { formatDateTime } from '../../utils/dateHelpers';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 const GradingModal = ({ submission, onClose, onSave }) => {
   const [grade, setGrade] = useState(submission.grade || '');
@@ -9,7 +13,6 @@ const GradingModal = ({ submission, onClose, onSave }) => {
   const [loadingParts, setLoadingParts] = useState(false);
   const [partsError, setPartsError] = useState('');
 
-  // Fetch parts when modal opens with examId
   useEffect(() => {
     if (submission?.examId) {
       fetchParts();
@@ -30,22 +33,7 @@ const GradingModal = ({ submission, onClose, onSave }) => {
 
       console.log('Parts data:', result);
 
-      // Handle different response structures
-      let partsData = [];
-      if (result && result.data) {
-        if (Array.isArray(result.data)) {
-          partsData = result.data;
-        } else if (result.data.items && Array.isArray(result.data.items)) {
-          partsData = result.data.items;
-        } else if (result.data.data && Array.isArray(result.data.data)) {
-          partsData = result.data.data;
-        }
-      } else if (Array.isArray(result)) {
-        partsData = result;
-      } else if (result && result.items && Array.isArray(result.items)) {
-        partsData = result.items;
-      }
-
+      const partsData = parseResponseData(result);
       console.log(`Found ${partsData.length} parts for exam ${submission.examId}`);
       setParts(partsData);
     } catch (err) {
@@ -84,9 +72,7 @@ const GradingModal = ({ submission, onClose, onSave }) => {
               onClick={onClose}
               className="text-gray-400 hover:text-gray-500 focus:outline-none"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <CloseOutlined className="text-xl" />
             </button>
           </div>
         </div>
@@ -122,7 +108,7 @@ const GradingModal = ({ submission, onClose, onSave }) => {
                 <h4 className="text-sm font-medium text-gray-700 mb-3">Exam Parts</h4>
                 {loadingParts ? (
                   <div className="flex items-center gap-2 text-gray-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                    <LoadingSpinner size="sm" color="blue" />
                     <span className="text-sm">Loading parts...</span>
                   </div>
                 ) : partsError ? (
@@ -158,7 +144,7 @@ const GradingModal = ({ submission, onClose, onSave }) => {
                 <h4 className="text-sm font-medium text-gray-700">Assignment Details</h4>
                 {submission.createdAt && (
                   <span className="text-xs text-gray-500">
-                    {new Date(submission.createdAt).toLocaleString()}
+                    {formatDateTime(submission.createdAt)}
                   </span>
                 )}
               </div>

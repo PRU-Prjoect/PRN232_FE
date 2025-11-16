@@ -10,5 +10,6 @@ export { default as partService } from './partService';
 export { default as questionService } from './questionService';
 export { default as markingService } from './markingService';
 export { default as finalscoreService } from './finalscoreService';
+export { default as dashboardService } from './dashboardService';
 export { default as api } from './api';
 

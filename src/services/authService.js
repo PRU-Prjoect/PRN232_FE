@@ -5,8 +5,6 @@ export const authService = {
   login: async (email, password) => {
     const response = await api.post('/auth/login', { Email: email, Password: password });
     const { accessToken } = response.data;
-    
-    // Decode JWT để lấy user info
     if (accessToken) {
       const payload = JSON.parse(atob(accessToken.split('.')[1]));
       const roleClaim = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];

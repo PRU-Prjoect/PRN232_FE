@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeftOutlined, CloseOutlined, DownOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { lecturerService, examService, solutionService, assignmentService } from '../services';
+import { parseResponseData } from '../utils/apiHelpers';
+import { getStatusColor, getStatusText } from '../utils/statusHelpers';
+import SolutionsTable from '../components/Admin/SolutionsTable';
+import LecturerSelector from '../components/Admin/LecturerSelector';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorAlert from '../components/common/ErrorAlert';
 
 const AssignmentManager = () => {
-  const { user, isLoggedIn, isAdmin } = useAuth();
+  const { user, isLoggedIn, isAdmin, loading: authLoading } = useAuth();
   const [lecturers, setLecturers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -21,13 +28,18 @@ const AssignmentManager = () => {
   const [selectedSolutions, setSelectedSolutions] = useState({}); 
 
   useEffect(() => {
+    // Wait for auth to finish loading before checking
+    if (authLoading) {
+      return;
+    }
+    
     if (!isLoggedIn) {
       window.location.href = '/login';
       return;
     }
     
     loadData();
-  }, [isLoggedIn]);
+  }, [isLoggedIn, authLoading]);
 
   const loadData = async () => {
     try {
@@ -41,32 +53,23 @@ const AssignmentManager = () => {
         pageSize: 100 
       });
       console.log('Exam API Response:', examData);
-      let examItems = [];
-      if (Array.isArray(examData)) {
-        examItems = examData;
-      } else if (examData?.data?.items) {
-        examItems = examData.data.items;
-      } else if (examData?.items) {
-        examItems = examData.items;
-      } else if (examData?.data && Array.isArray(examData.data)) {
-        examItems = examData.data;
-      }
+      const examItems = parseResponseData(examData);
       setExams(examItems);
       console.log('Exams loaded:', examItems);
 
-      const mockSubmissions = [
-        { id: '1', studentName: 'Nguyễn Văn A', studentId: 'SE123456', fileName: 'assignment1.zip', status: 'pending' },
-        { id: '2', studentName: 'Trần Thị B', studentId: 'SE789012', fileName: 'assignment2.zip', status: 'pending' },
-        { id: '3', studentName: 'Lê Văn C', studentId: 'SE345678', fileName: 'assignment3.zip', status: 'assigned' },
-        { id: '4', studentName: 'Phạm Thị D', studentId: 'SE901234', fileName: 'assignment4.zip', status: 'graded' },
-      ];
-      setSubmissions(mockSubmissions);
+      // const mockSubmissions = [
+      //   { id: '1', studentName: 'Nguyễn Văn A', studentId: 'SE123456', fileName: 'assignment1.zip', status: 'pending' },
+      //   { id: '2', studentName: 'Trần Thị B', studentId: 'SE789012', fileName: 'assignment2.zip', status: 'pending' },
+      //   { id: '3', studentName: 'Lê Văn C', studentId: 'SE345678', fileName: 'assignment3.zip', status: 'assigned' },
+      //   { id: '4', studentName: 'Phạm Thị D', studentId: 'SE901234', fileName: 'assignment4.zip', status: 'graded' },
+      // ];
+      // setSubmissions(mockSubmissions);
 
-      const mockAssignments = [
-        { id: '1', lecturerId: 'lecturer1', lecturerName: 'Hoàng Võ Đông Nghi', submissionIds: ['1', '2'], status: 'assigned' },
-        { id: '2', lecturerId: 'lecturer2', lecturerName: 'lecturer', submissionIds: ['3'], status: 'graded' },
-      ];
-      setAssignments(mockAssignments);
+      // const mockAssignments = [
+      //   { id: '1', lecturerId: 'lecturer1', lecturerName: 'Hoàng Võ Đông Nghi', submissionIds: ['1', '2'], status: 'assigned' },
+      //   { id: '2', lecturerId: 'lecturer2', lecturerName: 'lecturer', submissionIds: ['3'], status: 'graded' },
+      // ];
+      // setAssignments(mockAssignments);
 
     } catch (err) {
       console.error('Error loading data:', err);
@@ -81,15 +84,11 @@ const AssignmentManager = () => {
       const newLecturers = [...prev];
       
       if (lecturerId === '') {
-        // Deselecting - remove this lecturer
         newLecturers.splice(index, 1);
       } else {
-        // Selecting a lecturer
         if (index < newLecturers.length) {
-          // Update existing selection
           newLecturers[index] = lecturerId;
         } else {
-          // Add new selection
           newLecturers.push(lecturerId);
         }
       }
@@ -218,14 +217,10 @@ const AssignmentManager = () => {
         
         setSuccessMessage(`Phân công thành công!\n\n${successMessages.join('\n')}`);
       }
-
-      // Reset selections nếu tất cả đều thành công
       if (failedResults.length === 0) {
         setSelectedLecturers([]);
         setSelectedExams([]);
         setSelectedSolutions({});
-        
-        // Reload data để lấy assignments mới nhất từ server
         await loadData();
       }
       
@@ -273,14 +268,7 @@ const AssignmentManager = () => {
           pageSize: 100,
           examId: examId
         });
-        let solutions = [];
-        if (Array.isArray(response)) {
-          solutions = response;
-        } else if (response?.data && Array.isArray(response.data)) {
-          solutions = response.data;
-        } else if (response?.items && Array.isArray(response.items)) {
-          solutions = response.items;
-        }
+        const solutions = parseResponseData(response);
         
         setExamSolutions(prev => ({
           ...prev,
@@ -324,28 +312,11 @@ const AssignmentManager = () => {
     }));
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'assigned': return 'bg-blue-100 text-blue-800';
-      case 'graded': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'pending': return 'Chờ phân công';
-      case 'assigned': return 'Đã phân công';
-      case 'graded': return 'Đã chấm';
-      default: return 'Không xác định';
-    }
-  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+        <LoadingSpinner size="lg" color="orange" />
       </div>
     );
   }
@@ -361,9 +332,7 @@ const AssignmentManager = () => {
                 className="mr-4 p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                 title="Back to Home"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
+                <ArrowLeftOutlined className="text-xl" />
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Assignment Manager</h1>
@@ -387,9 +356,7 @@ const AssignmentManager = () => {
 
       <div className="container mx-auto px-4 py-8">
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded whitespace-pre-line">
-            {error}
-          </div>
+          <ErrorAlert message={error} className="mb-6 whitespace-pre-line" />
         )}
         {successMessage && (
           <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded whitespace-pre-line">
@@ -405,9 +372,7 @@ const AssignmentManager = () => {
                 className="ml-4 text-green-600 hover:text-green-800 flex-shrink-0"
                 title="Đóng"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <CloseOutlined />
               </button>
             </div>
           </div>
@@ -419,57 +384,12 @@ const AssignmentManager = () => {
           
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Chọn giảng viên</label>
-            <div className="space-y-3">
-              {/* Render dropdowns: one for each selected lecturer + one empty for next selection */}
-              {[...selectedLecturers.map(id => id), ''].map((selectedLecturerId, index) => {
-                // Get available lecturers for this dropdown (exclude already selected ones)
-                const availableLecturers = lecturers
-                  .filter(lecturer => lecturer.fullName)
-                  .filter(lecturer => {
-                    // Only show lecturers with role "lecturer", exclude "admin"
-                    const role = lecturer.role || lecturer.roles || '';
-                    return role === 'lecturer' || role.toLowerCase() === 'lecturer';
-                  })
-                  .filter(lecturer => {
-                    // Exclude all lecturers that are selected in other dropdowns
-                    return !selectedLecturers.some((id, idx) => idx !== index && id === lecturer.id);
-                  });
-
-                // Only show the last empty dropdown if there are available lecturers
-                const isLastEmpty = index === selectedLecturers.length && selectedLecturerId === '';
-                if (isLastEmpty && availableLecturers.length === 0) {
-                  return null; // Don't show empty dropdown if no lecturers available
-                }
-
-                return (
-                  <div key={index} className="flex items-center gap-2">
-                    <select
-                      value={selectedLecturerId}
-                      onChange={(e) => handleLecturerChange(index, e.target.value)}
-                      className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    >
-                      <option value="">-- Chọn giảng viên --</option>
-                      {availableLecturers.map(lecturer => (
-                        <option key={lecturer.id} value={lecturer.id}>
-                          {lecturer.fullName}
-                        </option>
-                      ))}
-                    </select>
-                    {index < selectedLecturers.length && selectedLecturerId !== '' && (
-                      <button
-                        onClick={() => handleRemoveLecturer(index)}
-                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
-                        title="Xóa giảng viên"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <LecturerSelector
+              lecturers={lecturers}
+              selectedLecturers={selectedLecturers}
+              onLecturerChange={handleLecturerChange}
+              onRemoveLecturer={handleRemoveLecturer}
+            />
           </div>
           
           <div className="flex items-center justify-between mb-4">
@@ -588,7 +508,7 @@ const AssignmentManager = () => {
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
                               >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                <DownOutlined />
                               </svg>
                             </button>
                           </td>
@@ -596,83 +516,14 @@ const AssignmentManager = () => {
                         {isExpanded && (
                           <tr>
                             <td colSpan="9" className="px-6 py-4 bg-gray-50">
-                              {isLoadingSolutions ? (
-                                <div className="flex items-center justify-center py-4">
-                                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-orange-500"></div>
-                                  <span className="ml-2 text-sm text-gray-600">Đang tải solutions...</span>
-                                </div>
-                              ) : solutions.length > 0 ? (
-                                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                                  <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-                                    <h3 className="text-sm font-semibold text-gray-900">
-                                      Solutions ({solutions.length})
-                                    </h3>
-                                  </div>
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                      <thead className="bg-gray-100">
-                                        <tr>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">
-                                            <input
-                                              type="checkbox"
-                                              checked={solutions.length > 0 && (selectedSolutions[examId] || []).length === solutions.length}
-                                              onChange={() => handleSelectAllSolutions(examId)}
-                                              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                            />
-                                          </th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">STT</th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Mã sinh viên</th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Path</th>
-                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Ngày tạo</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="bg-white divide-y divide-gray-200">
-                                        {solutions.map((solution, solIndex) => {
-                                          const solutionId = solution.id || solution.solutionId;
-                                          const isSelected = (selectedSolutions[examId] || []).includes(solutionId);
-                                          return (
-                                            <tr key={solutionId || solIndex} className={`hover:bg-gray-50 ${isSelected ? 'bg-orange-50' : ''}`}>
-                                              <td className="px-4 py-2 whitespace-nowrap">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={isSelected}
-                                                  onChange={() => handleSolutionSelect(examId, solutionId)}
-                                                  className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                                />
-                                              </td>
-                                              <td className="px-4 py-2 text-sm text-gray-900">{solIndex + 1}</td>
-                                              <td className="px-4 py-2 text-sm text-gray-900">
-                                                {solution.studentCode || 'N/A'}
-                                              </td>
-                                              <td className="px-4 py-2 text-sm text-gray-600">
-                                                <div className="max-w-xs truncate" title={solution.path || 'N/A'}>
-                                                  {solution.path || 'N/A'}
-                                                </div>
-                                              </td>
-                                              <td className="px-4 py-2 text-sm text-gray-900">
-                                                {solution.createdAt 
-                                                  ? new Date(solution.createdAt).toLocaleDateString('vi-VN')
-                                                  : 'N/A'}
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                  {(selectedSolutions[examId] || []).length > 0 && (
-                                    <div className="px-4 py-2 bg-orange-50 border-t border-gray-200">
-                                      <p className="text-sm text-gray-700">
-                                        <span className="font-medium">Đã chọn {(selectedSolutions[examId] || []).length}/{solutions.length} solution(s)</span>
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="text-center py-4 text-sm text-gray-500">
-                                  Không có solution nào cho kỳ thi này
-                                </div>
-                              )}
+                              <SolutionsTable
+                                solutions={solutions}
+                                isLoading={isLoadingSolutions}
+                                selectedSolutions={selectedSolutions[examId] || []}
+                                onSelectSolution={handleSolutionSelect}
+                                onSelectAll={() => handleSelectAllSolutions(examId)}
+                                examId={examId}
+                              />
                             </td>
                           </tr>
                         )}

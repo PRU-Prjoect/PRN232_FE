@@ -120,7 +120,7 @@ const FileUploader = ({ onFilesExtracted }) => {
 
       {isLoading && (
         <div className="mt-4 text-center">
-          <div className="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-orange-500"></div>
+          <LoadingSpinner size="sm" color="orange" />
           <p className="mt-2 text-sm text-gray-600">Processing file...</p>
         </div>
       )}

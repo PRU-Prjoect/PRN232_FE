@@ -24,7 +24,7 @@ export const markingService = {
 
   // Get markings by assignment ID
   getMarkingsByAssignment: async (assignmentId) => {
-    const response = await api.get(`/marking/assignment/${assignmentId}`);
+    const response = await api.get(`/marking?assignmentId=${assignmentId}`);
     return response.data;
   },
 
