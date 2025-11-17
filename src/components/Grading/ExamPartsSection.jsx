@@ -1,5 +1,4 @@
 import React from 'react';
-import { DownOutlined } from '@ant-design/icons';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ExamPartsSection = ({
@@ -9,17 +8,32 @@ const ExamPartsSection = ({
   partsError,
   partQuestions,
   loadingQuestions,
-  expandedParts,
-  onTogglePart,
   questionScores,
-  onScoreChange
+  onScoreChange,
+  activeQuestionId,
+  onQuestionFocus,
+  onNextQuestion
 }) => {
   if (!examId) return null;
 
+  const totalQuestions = Object.values(partQuestions || {}).reduce((sum, list) => sum + (list?.length || 0), 0);
+
   return (
     <div className="bg-blue-50 rounded-lg p-4 mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-medium text-gray-700">Exam Parts</h4>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h4 className="text-sm font-semibold text-gray-800">Exam Questions</h4>
+          <p className="text-xs text-gray-600">Enter scores directly for each question</p>
+        </div>
+        {/* {totalQuestions > 0 && (
+          <button
+            type="button"
+            onClick={() => onNextQuestion && onNextQuestion()}
+            className="px-3 py-1.5 text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+          >
+            Next Question →
+          </button>
+        )} */}
       </div>
       {loadingParts ? (
         <LoadingSpinner size="sm" color="blue" text="Loading parts..." />
@@ -49,25 +63,22 @@ const ExamPartsSection = ({
                 </div>
                 
                 <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => onTogglePart(partId)}
-                    className="flex items-center justify-between w-full text-left text-xs font-medium text-gray-700 mb-2 hover:text-gray-900"
-                  >
-                    <span>Questions ({questions.length})</span>
-                    <DownOutlined className={`transition-transform ${expandedParts[partId] ? 'rotate-180' : ''}`} />
-                  </button>
                   {isLoadingQuestions ? (
                     <LoadingSpinner size="sm" color="blue" text="Loading questions..." className="text-xs" />
-                  ) : expandedParts[partId] && questions.length > 0 ? (
-                    <div className="bg-gray-50 rounded-md p-2 space-y-2 border border-gray-200">
+                  ) : questions.length > 0 ? (
+                    <div className="space-y-2">
                       {questions.map((question, qIndex) => {
                         const questionId = question.id;
                         const maxScore = question.maxScore || 0;
                         const currentScore = questionScores[questionId] || '';
+                        const isActive = activeQuestionId === questionId;
                         
                         return (
-                          <div key={questionId || qIndex} className="bg-white rounded p-2 border border-gray-200">
+                          <div
+                            key={questionId || qIndex}
+                            id={`question-card-${questionId}`}
+                            className={`bg-gray-50 rounded-lg p-3 border transition-all ${isActive ? 'border-blue-500 shadow-sm bg-white' : 'border-gray-200'}`}
+                          >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
@@ -96,6 +107,7 @@ const ExamPartsSection = ({
                                   step="0.1"
                                   value={currentScore}
                                   onChange={(e) => onScoreChange(questionId, e.target.value, maxScore)}
+                                  onFocus={() => onQuestionFocus && onQuestionFocus(questionId)}
                                   placeholder="0"
                                   className="w-20 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 />
@@ -104,13 +116,28 @@ const ExamPartsSection = ({
                                 )}
                               </div>
                             </div>
+                            <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                              <span>
+                                Question {question.numberQuestion || qIndex + 1} • {question.questionType || 'Essay'}
+                              </span>
+                              {totalQuestions > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onNextQuestion && onNextQuestion(questionId)}
+                                  className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                                >
+                                  Next
+                                  <span aria-hidden="true">→</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-                  ) : expandedParts[partId] && questions.length === 0 ? (
+                  ) : (
                     <p className="text-xs text-gray-500">No questions found for this part</p>
-                  ) : null}
+                  )}
                 </div>
               </div>
             );

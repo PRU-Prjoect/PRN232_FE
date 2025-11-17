@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { partService, questionService, solutionService, markingService, finalscoreService, assignmentService } from '../services';
+import { partService, questionService, solutionService, markingService, finalscoreService, assignmentService, examService, studentService } from '../services';
 import { parseResponseData } from '../utils/apiHelpers';
 import { formatDateTime } from '../utils/dateHelpers';
 import { isAssignmentCompleted } from '../utils/statusHelpers';
@@ -25,22 +25,87 @@ const GradingPage = () => {
   const [partsError, setPartsError] = useState('');
   const [partQuestions, setPartQuestions] = useState({});
   const [loadingQuestions, setLoadingQuestions] = useState({});
-  const [expandedParts, setExpandedParts] = useState({});
   const [solution, setSolution] = useState(null);
   const [loadingSolution, setLoadingSolution] = useState(false);
   const [questionScores, setQuestionScores] = useState({});
   const [markingIds, setMarkingIds] = useState({});
   const [finalScoreId, setFinalScoreId] = useState(null);
   const [loadingMarkings, setLoadingMarkings] = useState(false);
+  const [questionSequence, setQuestionSequence] = useState([]);
+  const [activeQuestionId, setActiveQuestionId] = useState(null);
+  const [examInfo, setExamInfo] = useState(null);
+  const [loadingExam, setLoadingExam] = useState(false);
+  const [examError, setExamError] = useState('');
+  const [studentInfo, setStudentInfo] = useState(null);
+  const [loadingStudent, setLoadingStudent] = useState(false);
+  const [studentError, setStudentError] = useState('');
+
+  const fetchExamDetails = useCallback(async () => {
+    if (!examId) return;
+    try {
+      setLoadingExam(true);
+      setExamError('');
+      const response = await examService.getExamById(examId);
+      const data = response?.data || response;
+      setExamInfo(data);
+    } catch (err) {
+      console.error('Error fetching exam info:', err);
+      setExamError(err?.message || 'Unable to load exam information');
+      setExamInfo(null);
+    } finally {
+      setLoadingExam(false);
+    }
+  }, [examId]);
+
+  const fetchStudentDetails = useCallback(async (studentIdValue) => {
+    if (!studentIdValue) return;
+    try {
+      setLoadingStudent(true);
+      setStudentError('');
+      const response = await studentService.getStudentById(studentIdValue);
+      const data = response?.data || response;
+      setStudentInfo(data);
+    } catch (err) {
+      console.error('Error fetching student info:', err);
+      setStudentError(err?.message || 'Unable to load student information');
+      setStudentInfo(null);
+    } finally {
+      setLoadingStudent(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (examId) {
       fetchParts();
+      fetchExamDetails();
     }
     if (assignment.solutionId) {
       fetchSolution();
     }
-  }, [examId, assignment.solutionId, assignment.id, assignment.assignmentId]);
+  }, [examId, assignment.solutionId, assignment.id, assignment.assignmentId, fetchExamDetails]);
+
+  useEffect(() => {
+    const studentIdValue =
+      assignment.studentId ||
+      assignment.studentCode ||
+      assignment.student?.id ||
+      assignment.student?.studentId ||
+      solution?.studentId ||
+      solution?.studentCode ||
+      solution?.student?.id;
+
+    if (studentIdValue) {
+      fetchStudentDetails(studentIdValue);
+    }
+  }, [
+    assignment.studentId,
+    assignment.studentCode,
+    assignment.student,
+    solution?.studentId,
+    solution?.studentCode,
+    solution?.student,
+    fetchStudentDetails
+  ]);
 
   const fetchParts = async () => {
     try {
@@ -57,10 +122,14 @@ const GradingPage = () => {
       console.log('Parts data:', result);
 
       const partsData = parseResponseData(result);
-      console.log(`Found ${partsData.length} parts for exam ${examId}`);
-      setParts(partsData);
+      const filteredParts = partsData.filter(part => {
+        if (!part.examId) return true;
+        return String(part.examId) === String(examId);
+      });
+      console.log(`Found ${partsData.length} parts, ${filteredParts.length} matching exam ${examId}`);
+      setParts(filteredParts);
 
-      partsData.forEach(part => {
+      filteredParts.forEach(part => {
         if (part.id) {
           fetchQuestionsForPart(part.id);
         }
@@ -103,10 +172,13 @@ const GradingPage = () => {
 
       console.log(`Found ${questionsData.length} total questions, ${filteredQuestions.length} questions for part ${partId} (filtered by partId)`);
 
-      setPartQuestions(prev => ({
+      setPartQuestions(prev => {
+        const nextState = {
         ...prev,
         [partId]: filteredQuestions
-      }));
+        };
+        return nextState;
+      });
     } catch (err) {
       console.error(`Error fetching questions for part ${partId}:`, err);
       setPartQuestions(prev => ({
@@ -123,7 +195,7 @@ const GradingPage = () => {
       setLoadingSolution(true);
       const solutionData = await solutionService.getSolutionById(assignment.solutionId);
       console.log('Solution data:', solutionData);
-
+      
       const solutionResult = solutionData?.data || solutionData;
 
       if (solutionResult?.path) {
@@ -141,7 +213,7 @@ const GradingPage = () => {
           });
         }
       } else {
-        setSolution(solutionResult);
+      setSolution(solutionResult);
       }
     } catch (err) {
       console.error('Error fetching solution:', err);
@@ -154,9 +226,26 @@ const GradingPage = () => {
     await downloadSolution(solution, assignment.solutionId);
   };
 
+  useEffect(() => {
+    const allQuestions = Object.values(partQuestions || {})
+      .flat()
+      .filter(question => question && question.id);
+    setQuestionSequence(allQuestions);
+
+    if (allQuestions.length === 0) {
+      setActiveQuestionId(null);
+      return;
+    }
+
+    const hasActive = allQuestions.some(question => question.id === activeQuestionId);
+    if (!hasActive) {
+      setActiveQuestionId(allQuestions[0].id);
+    }
+  }, [partQuestions, activeQuestionId]);
+
   const handleQuestionScoreChange = (questionId, value, maxScore) => {
     let score = parseFloat(value) || 0;
-
+    
     if (maxScore !== null && maxScore !== undefined && score > maxScore) {
       score = maxScore;
       alert(`Score cannot exceed max score of ${maxScore}`);
@@ -166,12 +255,46 @@ const GradingPage = () => {
     if (score < 0) {
       score = 0;
     }
-    
     setQuestionScores(prev => ({
       ...prev,
       [questionId]: score
     }));
+    setActiveQuestionId(questionId);
   };
+
+  const handleNextQuestion = useCallback((currentQuestionId) => {
+    if (!questionSequence || questionSequence.length === 0) return;
+
+    const currentId = currentQuestionId || activeQuestionId || questionSequence[0]?.id;
+    const currentIndex = questionSequence.findIndex(question => question.id === currentId);
+    const nextIndex = currentIndex >= 0 && currentIndex < questionSequence.length - 1
+      ? currentIndex + 1
+      : 0;
+    const nextQuestion = questionSequence[nextIndex];
+
+    if (nextQuestion?.id) {
+      setActiveQuestionId(nextQuestion.id);
+      requestAnimationFrame(() => {
+        const element = document.getElementById(`question-card-${nextQuestion.id}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+  }, [questionSequence, activeQuestionId]);
+
+  const studentName = assignment.studentName || assignment.studentFullName || assignment.student || assignment.studentDisplayName;
+  const studentId = assignment.studentId || assignment.studentCode || assignment.studentNumber;
+  const studentEmail = assignment.studentEmail || assignment.email;
+  const studentClass = assignment.className || assignment.studentClass || assignment.groupName;
+  const displayStudentName = studentInfo?.fullName || studentInfo?.name || studentInfo?.studentName || studentName || 'Unknown Student';
+  const displayStudentId = studentInfo?.studentCode || studentInfo?.studentId || studentInfo?.code || studentInfo?.id || studentId || 'N/A';
+  //const displayStudentEmail = studentInfo?.email || studentInfo?.emailAddress || studentInfo?.contactEmail || studentEmail || 'N/A';
+  const displayStudentClass = studentInfo?.className || studentInfo?.classCode || studentClass || 'Class';
+  const displayExamName = examInfo?.name || examInfo?.title || assignment.examName || `Exam ${assignment.examId || ''}`;
+  const displayCourseName = examInfo?.courseName || examInfo?.courseCode || assignment.courseName || 'Course';
+  const displaySemester = examInfo?.semester || examInfo?.semesterName || assignment.semester || assignment.term || 'N/A';
+  const displayExamCode = examInfo?.code || examInfo?.examCode || assignment.examCode;
 
   useEffect(() => {
     const totalScore = Object.values(questionScores).reduce((sum, score) => {
@@ -327,13 +450,87 @@ const GradingPage = () => {
 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs uppercase text-gray-500 font-semibold tracking-wide">Student Information</p>
+                  <h3 className="text-lg font-semibold text-gray-900 mt-1">
+                    {loadingStudent ? 'Loading student...' : studentError ? 'Student Info Unavailable' : displayStudentId}
+                  </h3>
+                  {studentError && <p className="text-xs text-red-500 mt-1">{studentError}</p>}
+                </div>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                  {displayStudentClass}
+                </span>
+              </div>
+              <dl className="space-y-3 text-sm text-gray-600">
+                <div className="flex justify-between">
+                  <dt className="font-medium text-gray-500">Student ID</dt>
+                  <dd className="text-gray-900 font-mono">{displayStudentId}</dd>
+                </div>
+                {/* <div className="flex justify-between">
+                  <dt className="font-medium text-gray-500">Email</dt>
+                  <dd className="text-gray-900">{displayStudentEmail}</dd>
+                </div> */}
+                <div className="flex justify-between">
+                  <dt className="font-medium text-gray-500">Assignment Status</dt>
+                  <dd className="text-gray-900 capitalize">{assignment.status || 'Pending'}</dd>
+                </div>
+                {/* <div className="flex justify-between">
+                  <dt className="font-medium text-gray-500">Submitted At</dt>
+                  <dd className="text-gray-900">
+                    {assignment.submittedAt ? formatDateTime(assignment.submittedAt) : 'Not submitted'}
+                  </dd>
+                </div> */}
+              </dl>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs uppercase text-gray-500 font-semibold tracking-wide">Exam Information</p>
+                  <h3 className="text-lg font-semibold text-gray-900 mt-1">
+                    {loadingExam ? 'Loading exam...' : examError ? 'Exam Info Unavailable' : displayExamName}
+                  </h3>
+                  {examError && <p className="text-xs text-red-500 mt-1">{examError}</p>}
+                </div>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
+                  {displayCourseName}
+                </span>
+              </div>
+              <dl className="space-y-3 text-sm text-gray-600">
+                <div className="flex justify-between">
+                  <dt className="font-medium text-gray-500">Exam ID</dt>
+                  <dd className="text-gray-900 font-mono">{assignment.examId || examInfo?.id || 'N/A'}</dd>
+                </div>
+                {displayExamCode && (
+                  <div className="flex justify-between">
+                    <dt className="font-medium text-gray-500">Exam Code</dt>
+                    <dd className="text-gray-900">{displayExamCode}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <dt className="font-medium text-gray-500">Semester</dt>
+                  <dd className="text-gray-900">{displaySemester}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="font-medium text-gray-500">Assigned At</dt>
+                  <dd className="text-gray-900">
+                    {assignment.createdAt ? formatDateTime(assignment.createdAt) : 'N/A'}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SolutionViewer
               solution={solution}
               assignment={assignment}
               loadingSolution={loadingSolution}
               onDownload={handleDownloadSolution}
-            />            <div>
+            />
+            <div>
               <ExamPartsSection
                 examId={examId}
                 parts={parts}
@@ -341,13 +538,11 @@ const GradingPage = () => {
                 partsError={partsError}
                 partQuestions={partQuestions}
                 loadingQuestions={loadingQuestions}
-                expandedParts={expandedParts}
-                onTogglePart={(partId) => setExpandedParts(prev => ({
-                  ...prev,
-                  [partId]: !prev[partId]
-                }))}
                 questionScores={questionScores}
                 onScoreChange={handleQuestionScoreChange}
+                activeQuestionId={activeQuestionId}
+                onQuestionFocus={setActiveQuestionId}
+                onNextQuestion={handleNextQuestion}
               />
 
               <GradingForm

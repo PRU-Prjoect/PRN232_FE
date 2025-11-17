@@ -2,6 +2,7 @@ export { default as authService } from './authService';
 export { default as submissionService } from './submissionService';
 export { default as gradingService } from './gradingService';
 export { default as examService } from './examService';
+export { default as studentService } from './studentService';
 export { default as userService } from './userService';
 export { default as lecturerService } from './lecturerService';
 export { default as solutionService } from './solutionService';
