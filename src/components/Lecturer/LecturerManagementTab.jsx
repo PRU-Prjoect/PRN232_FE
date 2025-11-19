@@ -177,6 +177,7 @@ const LecturerManagementTab = () => {
         onClose={() => { setShowAddLecturer(false); setCreateError(''); }}
         title="Add Lecturer"
         size="sm"
+        footer={null}
       >
         {createError && (
           <ErrorAlert message={createError} className="text-sm" />

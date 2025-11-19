@@ -130,7 +130,7 @@ const ApproveScoresTab = () => {
                         ? 'bg-green-100 text-green-800'
                         : 'bg-yellow-100 text-yellow-800'
                       }`}>
-                      {score.approvedAt ? 'Approved' : 'Pending Approval'}
+                      {score.approvedAt ? 'Complete' : 'Pending Approval'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-center">
@@ -191,6 +191,7 @@ const ApproveScoresTab = () => {
         onClose={closeEnterScoreModal}
         solutionId={selectedScoreForEdit?.solutionId}
         currentScore={selectedScoreForEdit?.totalScore}
+        currentFinalScoreId={selectedScoreForEdit?.id || selectedScoreForEdit?.finalScoreId}
         onSuccess={handleScoreSaved}
       />
     </div>

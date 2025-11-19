@@ -1,5 +1,6 @@
 import React from 'react';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { formatDateTime } from '../../utils/dateHelpers';
 
 const ExamPartsSection = ({
   examId,
@@ -12,7 +13,11 @@ const ExamPartsSection = ({
   onScoreChange,
   activeQuestionId,
   onQuestionFocus,
-  onNextQuestion
+  onNextQuestion,
+  duplicateCheckData,
+  loadingDuplicateCheck,
+  duplicateCheckError,
+  onRefreshDuplicateCheck
 }) => {
   if (!examId) return null;
 
@@ -35,6 +40,56 @@ const ExamPartsSection = ({
           </button>
         )} */}
       </div>
+      <div className="bg-white border border-purple-100 rounded-lg p-3 mb-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase font-semibold text-purple-600 tracking-wide">Duplicate Check</p>
+            <p className="text-xs text-gray-600">
+              {duplicateCheckData?.prompt || 'Similarity analysis between student submissions'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onRefreshDuplicateCheck && onRefreshDuplicateCheck()}
+            disabled={loadingDuplicateCheck}
+            className="text-xs font-medium text-purple-600 hover:text-purple-800 disabled:opacity-60"
+          >
+            {loadingDuplicateCheck ? 'Checking…' : 'Re-run'}
+          </button>
+        </div>
+        <div className="mt-3">
+          {duplicateCheckError ? (
+            <p className="text-xs text-red-600">{duplicateCheckError}</p>
+          ) : loadingDuplicateCheck ? (
+            <LoadingSpinner size="sm" color="purple" text="Running duplicate check..." />
+          ) : duplicateCheckData?.similarities?.length ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {duplicateCheckData.similarities.map((similarity, index) => (
+                <div key={`${similarity.solutionAId}-${similarity.solutionBId}-${index}`} className="border border-purple-100 rounded-md p-2 text-xs text-gray-700">
+                  <div className="flex items-center justify-between mb-1 font-semibold text-gray-900">
+                    <span>
+                      {similarity.solutionAId?.slice(0, 6)}… vs {similarity.solutionBId?.slice(0, 6)}…
+                    </span>
+                    <span className="text-red-600">{similarity.similarityPercent ? `${similarity.similarityPercent}%` : '--'}</span>
+                  </div>
+                  {similarity.overlapSummary && (
+                    <p className="text-xs text-gray-600 mb-1">{similarity.overlapSummary}</p>
+                  )}
+                  <div className="flex items-center justify-between text-[11px] text-gray-500">
+                    <span>{similarity.method || 'N/A'}</span>
+                    {similarity.checkedAt && (
+                      <span>{formatDateTime(similarity.checkedAt)}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-600">No duplicate overlap detected for this exam.</p>
+          )}
+        </div>
+      </div>
+
       {loadingParts ? (
         <LoadingSpinner size="sm" color="blue" text="Loading parts..." />
       ) : partsError ? (

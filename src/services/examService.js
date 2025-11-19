@@ -134,6 +134,15 @@ export const examService = {
     return response.data;
   },
 
+  // Run duplicate check for an exam
+  runDuplicateCheck: async (examId, payload = { autoGenerateSimilarities: true }) => {
+    if (!examId) {
+      throw new Error('Exam ID is required to run duplicate check');
+    }
+    const response = await api.post(`/exams/${examId}/duplicate-check`, payload);
+    return response.data;
+  },
+
   // Download exam paper - GET /api/exam/{id}/exam-paper
   downloadExamPaper: async (examId) => {
     const token = localStorage.getItem('token');

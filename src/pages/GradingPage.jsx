@@ -39,6 +39,9 @@ const GradingPage = () => {
   const [studentInfo, setStudentInfo] = useState(null);
   const [loadingStudent, setLoadingStudent] = useState(false);
   const [studentError, setStudentError] = useState('');
+  const [duplicateCheckData, setDuplicateCheckData] = useState(null);
+  const [loadingDuplicateCheck, setLoadingDuplicateCheck] = useState(false);
+  const [duplicateCheckError, setDuplicateCheckError] = useState('');
 
   const fetchExamDetails = useCallback(async () => {
     if (!examId) return;
@@ -73,16 +76,6 @@ const GradingPage = () => {
       setLoadingStudent(false);
     }
   }, []);
-
-  useEffect(() => {
-    if (examId) {
-      fetchParts();
-      fetchExamDetails();
-    }
-    if (assignment.solutionId) {
-      fetchSolution();
-    }
-  }, [examId, assignment.solutionId, assignment.id, assignment.assignmentId, fetchExamDetails]);
 
   useEffect(() => {
     const studentIdValue =
@@ -141,6 +134,36 @@ const GradingPage = () => {
       setLoadingParts(false);
     }
   };
+
+  const fetchDuplicateCheck = useCallback(async () => {
+    if (!examId) return;
+    try {
+      setLoadingDuplicateCheck(true);
+      setDuplicateCheckError('');
+      const response = await examService.runDuplicateCheck(examId, {
+        autoGenerateSimilarities: true
+      });
+      const data = response?.data || response;
+      setDuplicateCheckData(data);
+    } catch (err) {
+      console.error('Error fetching duplicate check:', err);
+      setDuplicateCheckError(err?.message || 'Unable to load duplicate check results');
+      setDuplicateCheckData(null);
+    } finally {
+      setLoadingDuplicateCheck(false);
+    }
+  }, [examId]);
+
+  useEffect(() => {
+    if (examId) {
+      fetchParts();
+      fetchExamDetails();
+      fetchDuplicateCheck();
+    }
+    if (assignment.solutionId) {
+      fetchSolution();
+    }
+  }, [examId, assignment.solutionId, assignment.id, assignment.assignmentId, fetchExamDetails, fetchDuplicateCheck]);
 
   const fetchQuestionsForPart = async (partId) => {
     if (!assignment.solutionId) {
@@ -439,10 +462,10 @@ const GradingPage = () => {
               >
                 <ArrowLeftOutlined className="text-xl" />
               </button>
-              <div>
+              {/* <div>
                 <h1 className="text-2xl font-bold text-gray-900">Grade Assignment</h1>
                 <p className="text-sm text-gray-600">Grade and provide feedback for the assignment</p>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -543,6 +566,10 @@ const GradingPage = () => {
                 activeQuestionId={activeQuestionId}
                 onQuestionFocus={setActiveQuestionId}
                 onNextQuestion={handleNextQuestion}
+                duplicateCheckData={duplicateCheckData}
+                loadingDuplicateCheck={loadingDuplicateCheck}
+                duplicateCheckError={duplicateCheckError}
+                onRefreshDuplicateCheck={fetchDuplicateCheck}
               />
 
               <GradingForm

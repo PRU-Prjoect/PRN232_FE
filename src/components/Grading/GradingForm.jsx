@@ -27,12 +27,12 @@ const GradingForm = ({
             <p className="text-xs text-gray-500">Assignment ID</p>
             <p className="text-sm font-medium">{assignment.id || 'N/A'}</p>
           </div>
-          <div>
+          {/* <div>
             <p className="text-xs text-gray-500">Current Grade</p>
             <p className="text-sm font-medium">
               {assignment.grade !== null && assignment.grade !== undefined ? `${assignment.grade}/10` : 'Not graded'}
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
       <form onSubmit={onSubmit}>
@@ -54,7 +54,7 @@ const GradingForm = ({
             Total score is automatically calculated from individual question scores
           </p>
         </div>
-        <div className="mb-4">
+        {/* <div className="mb-4">
           <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-1">
             Feedback
           </label>
@@ -66,7 +66,7 @@ const GradingForm = ({
             className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm px-3 py-2 border"
             placeholder="Provide feedback on the submission..."
           />
-        </div>
+        </div> */}
         <div className="flex justify-end space-x-3">
           <button
             type="button"

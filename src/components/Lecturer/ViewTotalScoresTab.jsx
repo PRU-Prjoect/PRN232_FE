@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Button } from 'antd';
 import { BarChartOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
-import { finalscoreService } from '../../services';
+import { solutionService, finalscoreService } from '../../services';
 import { parseResponseData } from '../../utils/apiHelpers';
 import { formatDateTime } from '../../utils/dateHelpers';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -15,22 +15,120 @@ const ViewTotalScoresTab = () => {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
+  const [totalSolutionsCount, setTotalSolutionsCount] = useState(0);
   const [showMarkingsModal, setShowMarkingsModal] = useState(false);
   const [selectedSolutionId, setSelectedSolutionId] = useState(null);
 
-  const fetchFinalScores = useCallback(async () => {
+  const fetchSolutions = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const result = await finalscoreService.getFinalScores({
-        pageIndex: page,
-        pageSize: pageSize,
-        sortDirection: 'desc'
+      const [solutionsResponse, finalScoresResponse] = await Promise.all([
+        solutionService.getSolutions({
+          pageIndex: page,
+          pageSize: pageSize,
+          sortDirection: 'desc',
+        }),
+        finalscoreService.getFinalScores({
+          pageIndex: 1,
+          pageSize: 1000,
+          sortDirection: 'desc',
+        }),
+      ]);
+
+      const solutions = parseResponseData(solutionsResponse) || [];
+      const totalCount =
+        solutionsResponse?.totalCount ??
+        solutionsResponse?.data?.totalCount ??
+        solutionsResponse?.data?.totalItems ??
+        0;
+      setTotalSolutionsCount(totalCount);
+
+      const finalScoreEntries = parseResponseData(finalScoresResponse) || [];
+      const finalScoreMap = new Map();
+      finalScoreEntries.forEach((score) => {
+        const solutionId =
+          score?.solutionId ||
+          score?.solution?.id ||
+          score?.solution?.solutionId ||
+          score?.solutionID;
+        if (solutionId) {
+          finalScoreMap.set(solutionId, score);
+        }
       });
-      const scores = parseResponseData(result);
-      setFinalScores(scores || []);
+
+      const filteredSolutions = solutions.filter((solution) => {
+        const gradeStatus =
+          solution?.gradeStatus ??
+          solution?.GradeStatus ??
+          solution?.gradestatus ??
+          solution?.grade_status;
+        if (typeof gradeStatus === 'string') {
+          return gradeStatus.toLowerCase() === 'true';
+        }
+        if (typeof gradeStatus === 'number') {
+          return gradeStatus === 1;
+        }
+        return Boolean(gradeStatus);
+      });
+
+      const normalizedResults = filteredSolutions
+        .map((solution) => {
+          const solutionId = solution.solutionId || solution.id;
+          if (!solutionId) {
+            return null;
+          }
+
+          const finalScore = finalScoreMap.get(solutionId);
+
+          const totalScore =
+            finalScore?.totalScore ??
+            finalScore?.score ??
+            solution.totalScore ??
+            solution.total_score ??
+            solution.score ??
+            solution.finalScore ??
+            solution.final_score ??
+            solution.grade ??
+            null;
+
+          const approvedAt =
+            finalScore?.approvedAt ??
+            finalScore?.approved_at ??
+            solution.approvedAt ??
+            solution.approved_at ??
+            solution.finalScore?.approvedAt ??
+            solution.final_score?.approvedAt ??
+            solution.finalScoreApprovedAt ??
+            null;
+
+          const createdAt =
+            finalScore?.createdAt ??
+            finalScore?.created_at ??
+            finalScore?.createdDate ??
+            solution.createdAt ??
+            solution.created_at ??
+            solution.createdDate ??
+            solution.created_date ??
+            solution.created ??
+            solution.updatedAt ??
+            solution.updated_at ??
+            null;
+
+          return {
+            id: finalScore?.id || solution.id,
+            solutionId,
+            totalScore,
+            approvedAt,
+            createdAt,
+            status: approvedAt ? 'Approved' : 'Pending Approval',
+          };
+        })
+        .filter(Boolean);
+
+      setFinalScores(normalizedResults);
     } catch (err) {
-      console.error('Error fetching final scores:', err);
+      console.error('Error fetching solutions:', err);
       setError(err.message || 'Failed to load total scores');
       setFinalScores([]);
     } finally {
@@ -39,8 +137,8 @@ const ViewTotalScoresTab = () => {
   }, [page, pageSize]);
 
   React.useEffect(() => {
-    fetchFinalScores();
-  }, [fetchFinalScores]);
+    fetchSolutions();
+  }, [fetchSolutions]);
 
   const handleViewMarkings = (solutionId) => {
     setSelectedSolutionId(solutionId);
@@ -54,7 +152,6 @@ const ViewTotalScoresTab = () => {
 
   const totalCount = finalScores.length;
   const approvedCount = finalScores.filter(s => s.approvedAt).length;
-  const pendingCount = totalCount - approvedCount;
   const averageScore = totalCount > 0
     ? (finalScores.reduce((sum, s) => sum + (parseFloat(s.totalScore) || 0), 0) / totalCount).toFixed(2)
     : 0;
@@ -80,7 +177,7 @@ const ViewTotalScoresTab = () => {
         <Button
           type="primary"
           icon={<ReloadOutlined spin={loading} />}
-          onClick={fetchFinalScores}
+          onClick={fetchSolutions}
           loading={loading}
         >
           Refresh
@@ -182,7 +279,7 @@ const ViewTotalScoresTab = () => {
         onPrevPage={() => setPage(p => Math.max(1, p - 1))}
         onNextPage={() => setPage(p => p + 1)}
         isLoading={loading}
-        hasMore={finalScores.length >= pageSize}
+        hasMore={totalSolutionsCount > page * pageSize}
       />
 
       <MarkingDetailsModal

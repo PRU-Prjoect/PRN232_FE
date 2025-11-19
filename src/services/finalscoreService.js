@@ -39,12 +39,11 @@ export const finalscoreService = {
 
   // Approve final score
   approveFinalScore: async (approveData) => {
-    const { solutionId, assignmentId, totalScore } = approveData;
+    const { solutionId, assignmentId } = approveData;
     
     const response = await api.post('/finalscore/approve', {
       solutionId,
-      assignmentId,
-      totalScore: parseFloat(totalScore) || 0
+      assignmentId
     });
     return response.data;
   },

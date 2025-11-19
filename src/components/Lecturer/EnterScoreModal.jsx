@@ -5,14 +5,16 @@ import ErrorAlert from '../common/ErrorAlert';
 import { finalscoreService, assignmentService } from '../../services';
 import { parseResponseData } from '../../utils/apiHelpers';
 
-const EnterScoreModal = ({ isOpen, onClose, solutionId, currentScore, onSuccess }) => {
+const EnterScoreModal = ({ isOpen, onClose, solutionId, currentScore, currentFinalScoreId, onSuccess }) => {
   const [score, setScore] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loadingCurrentScore, setLoadingCurrentScore] = useState(false);
+  const [finalScoreId, setFinalScoreId] = useState(null);
 
   useEffect(() => {
     if (isOpen && solutionId) {
+      setFinalScoreId(currentFinalScoreId || null);
       if (currentScore !== null && currentScore !== undefined) {
         setScore(currentScore.toString());
       } else {
@@ -24,12 +26,16 @@ const EnterScoreModal = ({ isOpen, onClose, solutionId, currentScore, onSuccess 
             } else {
               setScore('');
             }
+            if (result && (result.id || result.finalScoreId)) {
+              setFinalScoreId(result.id || result.finalScoreId);
+            }
           })
           .catch((err) => {
             if (err?.response?.status !== 404) {
               console.warn('Error loading current score:', err);
             }
             setScore('');
+            setFinalScoreId(null);
           })
           .finally(() => {
             setLoadingCurrentScore(false);
@@ -37,7 +43,7 @@ const EnterScoreModal = ({ isOpen, onClose, solutionId, currentScore, onSuccess 
       }
       setError('');
     }
-  }, [isOpen, solutionId, currentScore]);
+  }, [isOpen, solutionId, currentScore, currentFinalScoreId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -84,12 +90,38 @@ const EnterScoreModal = ({ isOpen, onClose, solutionId, currentScore, onSuccess 
         return;
       }
       
-      // Call API approve (this will save and approve the score)
+      // Create or update the final score record before approval
+      let finalScoreRecordId = finalScoreId;
+      if (finalScoreRecordId) {
+        try {
+          await finalscoreService.updateFinalScore(finalScoreRecordId, {
+            totalScore: scoreValue
+          });
+        } catch (updateErr) {
+          console.error('Error updating final score record:', updateErr);
+          throw updateErr;
+        }
+      } else {
+        try {
+          const createdFinalScore = await finalscoreService.createFinalScore({
+            solutionId,
+            totalScore: scoreValue
+          });
+          if (createdFinalScore?.id || createdFinalScore?.finalScoreId) {
+            finalScoreRecordId = createdFinalScore.id || createdFinalScore.finalScoreId;
+            setFinalScoreId(finalScoreRecordId);
+          }
+        } catch (createErr) {
+          console.error('Error creating final score record:', createErr);
+          throw createErr;
+        }
+      }
+      
+      // Call API approve (backend will handle locking the saved score)
       try {
         await finalscoreService.approveFinalScore({
           solutionId,
-          assignmentId,
-          totalScore: scoreValue
+          assignmentId
         });
         console.log('Score saved and approved successfully');
         
@@ -144,6 +176,7 @@ const EnterScoreModal = ({ isOpen, onClose, solutionId, currentScore, onSuccess 
   const handleClose = () => {
     setScore('');
     setError('');
+    setFinalScoreId(null);
     onClose();
   };
 

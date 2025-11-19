@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ClockCircleOutlined, BarChartOutlined } from '@ant-design/icons';
+import { 
+  ClockCircleOutlined, 
+  BarChartOutlined, 
+  UserOutlined, 
+  TeamOutlined, 
+  FileTextOutlined, 
+  CheckCircleOutlined,
+  FileDoneOutlined,
+  HourglassOutlined,
+  TrophyOutlined
+} from '@ant-design/icons';
 import dashboardService from '../../services/dashboardService';
 import LoadingSpinner from '../common/LoadingSpinner';
 import ErrorAlert from '../common/ErrorAlert';
@@ -24,7 +34,7 @@ const ReportsTab = ({ isLecturer = false }) => {
             console.error('Error fetching overview stats:', err);
             return null;
           }),
-          dashboardService.getExamsByMonth(2024).catch(err => {
+          dashboardService.getExamsByMonth(2025).catch(err => {
             console.error('Error fetching exams by month:', err);
             return null;
           }),
@@ -81,81 +91,124 @@ const ReportsTab = ({ isLecturer = false }) => {
     );
   }
 
-  const submittedCount = overviewStats?.submittedCount || overviewStats?.submitted || 0;
-  const totalCount = overviewStats?.totalCount || overviewStats?.total || 0;
-  const gradedCount = overviewStats?.gradedCount || overviewStats?.graded || 0;
-  const lateCount = overviewStats?.lateCount || overviewStats?.late || 0;
-  
-  const submittedPercentage = totalCount > 0 ? Math.round((submittedCount / totalCount) * 100) : 0;
-  const gradedPercentage = totalCount > 0 ? Math.round((gradedCount / totalCount) * 100) : 0;
-  const latePercentage = totalCount > 0 ? Math.round((lateCount / totalCount) * 100) : 0;
+  // Extract system dashboard statistics
+  const stats = overviewStats || {};
+  const totalStudents = stats.totalStudents || 0;
+  const totalLecturers = stats.totalLecturers || 0;
+  const totalExams = stats.totalExams || 0;
+  const activeExams = stats.activeExams || 0;
+  const totalAssignments = stats.totalAssignments || 0;
+  const pendingAssignments = stats.pendingAssignments || 0;
+  const completedAssignments = stats.completedAssignments || 0;
+  const totalFinalScores = stats.totalFinalScores || 0;
+  const approvedFinalScores = stats.approvedFinalScores || 0;
 
-  const gradeDistribution = scoreStats?.gradeDistribution || overviewStats?.gradeDistribution || {
-    excellent: { count: 0, percentage: 0 }, // 9-10
-    good: { count: 0, percentage: 0 },     // 8-8.9
-    average: { count: 0, percentage: 0 },   // 7-7.9
-    below: { count: 0, percentage: 0 }      // < 7
-  };
-
-  // Pending actions
-  const pendingGrading = overviewStats?.pendingGrading || overviewStats?.pendingCount || 0;
-  const lastSubmission = overviewStats?.lastSubmission || 'N/A';
+  const completedPercentage = totalAssignments > 0 
+    ? Math.round((completedAssignments / totalAssignments) * 100) 
+    : 0;
+  const pendingPercentage = totalAssignments > 0 
+    ? Math.round((pendingAssignments / totalAssignments) * 100) 
+    : 0;
+  const approvedPercentage = totalFinalScores > 0 
+    ? Math.round((approvedFinalScores / totalFinalScores) * 100) 
+    : 0;
 
   return (
     <div className="p-12">
-      <h2 className="text-xl font-bold text-gray-900 mb-6 text-center">Course Reports</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">System Dashboard</h2>
 
+      {/* Main Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <StatCard
+          icon={<UserOutlined />}
+          title="Total Students"
+          value={totalStudents}
+          color="bg-blue-500"
+          bgColor="bg-blue-50"
+          iconColor="text-blue-600"
+        />
+        <StatCard
+          icon={<TeamOutlined />}
+          title="Total Lecturers"
+          value={totalLecturers}
+          color="bg-purple-500"
+          bgColor="bg-purple-50"
+          iconColor="text-purple-600"
+        />
+        <StatCard
+          icon={<FileTextOutlined />}
+          title="Total Exams"
+          value={totalExams}
+          color="bg-green-500"
+          bgColor="bg-green-50"
+          iconColor="text-green-600"
+        />
+        <StatCard
+          icon={<CheckCircleOutlined />}
+          title="Active Exams"
+          value={activeExams}
+          color="bg-orange-500"
+          bgColor="bg-orange-50"
+          iconColor="text-orange-600"
+        />
+        <StatCard
+          icon={<FileDoneOutlined />}
+          title="Total Assignments"
+          value={totalAssignments}
+          color="bg-indigo-500"
+          bgColor="bg-indigo-50"
+          iconColor="text-indigo-600"
+        />
+        <StatCard
+          icon={<HourglassOutlined />}
+          title="Pending Assignments"
+          value={pendingAssignments}
+          color="bg-yellow-500"
+          bgColor="bg-yellow-50"
+          iconColor="text-yellow-600"
+        />
+      </div>
+
+      {/* Assignment Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Submission Statistics</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <FileDoneOutlined className="mr-2 text-indigo-600" />
+            Assignment Statistics
+          </h3>
           <div className="space-y-4">
             <StatBar 
-              label="Submitted" 
-              value={`${submittedCount} students (${submittedPercentage}%)`} 
-              percentage={submittedPercentage} 
-              color="bg-blue-600" 
-            />
-            <StatBar 
-              label="Graded" 
-              value={`${gradedCount} students (${gradedPercentage}%)`} 
-              percentage={gradedPercentage} 
+              label="Completed Assignments" 
+              value={`${completedAssignments} / ${totalAssignments} (${completedPercentage}%)`} 
+              percentage={completedPercentage} 
               color="bg-green-600" 
             />
             <StatBar 
-              label="Late Submissions" 
-              value={`${lateCount} student${lateCount !== 1 ? 's' : ''} (${latePercentage}%)`} 
-              percentage={latePercentage} 
+              label="Pending Assignments" 
+              value={`${pendingAssignments} / ${totalAssignments} (${pendingPercentage}%)`} 
+              percentage={pendingPercentage} 
               color="bg-yellow-500" 
             />
           </div>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Grade Distribution</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <TrophyOutlined className="mr-2 text-orange-600" />
+            Final Scores Statistics
+          </h3>
           <div className="space-y-4">
             <StatBar 
-              label="9-10" 
-              value={`${gradeDistribution.excellent?.count || 0} student${(gradeDistribution.excellent?.count || 0) !== 1 ? 's' : ''} (${gradeDistribution.excellent?.percentage || 0}%)`} 
-              percentage={gradeDistribution.excellent?.percentage || 0} 
+              label="Approved Final Scores" 
+              value={`${approvedFinalScores} / ${totalFinalScores} (${approvedPercentage}%)`} 
+              percentage={approvedPercentage} 
               color="bg-green-600" 
             />
             <StatBar 
-              label="8-8.9" 
-              value={`${gradeDistribution.good?.count || 0} student${(gradeDistribution.good?.count || 0) !== 1 ? 's' : ''} (${gradeDistribution.good?.percentage || 0}%)`} 
-              percentage={gradeDistribution.good?.percentage || 0} 
-              color="bg-blue-600" 
-            />
-            <StatBar 
-              label="7-7.9" 
-              value={`${gradeDistribution.average?.count || 0} student${(gradeDistribution.average?.count || 0) !== 1 ? 's' : ''} (${gradeDistribution.average?.percentage || 0}%)`} 
-              percentage={gradeDistribution.average?.percentage || 0} 
-              color="bg-blue-400" 
-            />
-            <StatBar 
-              label="&lt; 7" 
-              value={`${gradeDistribution.below?.count || 0} student${(gradeDistribution.below?.count || 0) !== 1 ? 's' : ''} (${gradeDistribution.below?.percentage || 0}%)`} 
-              percentage={gradeDistribution.below?.percentage || 0} 
-              color="bg-red-500" 
+              label="Pending Approval" 
+              value={`${totalFinalScores - approvedFinalScores} / ${totalFinalScores} (${100 - approvedPercentage}%)`} 
+              percentage={100 - approvedPercentage} 
+              color="bg-orange-500" 
             />
           </div>
         </div>
@@ -164,15 +217,29 @@ const ReportsTab = ({ isLecturer = false }) => {
       {/* Exams by Month Section */}
       {examsByMonth && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Exams by Month (2024)</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Exams by Month (2025)</h3>
           <div className="space-y-3">
             {Array.isArray(examsByMonth) && examsByMonth.length > 0 ? (
-              examsByMonth.map((item, index) => (
-                <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-sm font-medium text-gray-700">{item.month || item.label || `Month ${index + 1}`}</span>
-                  <span className="text-sm font-semibold text-gray-900">{item.count || item.value || 0} exams</span>
-                </div>
-              ))
+              examsByMonth.map((item, index) => {
+                const monthName = getMonthName(item.month);
+                return (
+                  <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium text-gray-700">{monthName}</span>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="text-right">
+                        <span className="text-xs text-gray-500 block">Total</span>
+                        <span className="text-sm font-semibold text-gray-900">{item.count || 0} exams</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-gray-500 block">Active</span>
+                        <span className="text-sm font-semibold text-green-600">{item.activeCount || 0} exams</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <p className="text-sm text-gray-500">No exam data available</p>
             )}
@@ -185,45 +252,66 @@ const ReportsTab = ({ isLecturer = false }) => {
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Lecturers by Assignments</h3>
           <div className="space-y-3">
-            {Array.isArray(topLecturers) && topLecturers.length > 0 ? (
-              topLecturers.map((lecturer, index) => (
-                <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-sm font-medium text-gray-700">
-                    {lecturer.lecturerName || lecturer.name || `Lecturer ${index + 1}`}
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {lecturer.assignmentCount || lecturer.count || 0} assignments
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">No lecturer data available</p>
-            )}
-          </div>
+  {Array.isArray(topLecturers) && topLecturers.length > 0 ? (
+    topLecturers.map((lecturer, index) => {
+      const name = lecturer.fullName ?? "Unknown Lecturer";
+      const assigned = lecturer.assignmentCount ?? 0;
+      const completed = lecturer.completedAssignments ?? 0;
+
+      return (
+        <div
+          key={index}
+          className="flex justify-between items-center p-2 bg-gray-50 rounded"
+        >
+          <span className="text-sm font-medium text-gray-700">
+            {name}
+          </span>
+
+          <span className="text-sm font-semibold text-gray-900">
+            {assigned} assignments{" "}
+            <span className="text-gray-500">({completed} completed)</span>
+          </span>
+        </div>
+      );
+    })
+  ) : (
+    <p className="text-sm text-gray-500">No lecturer data available</p>
+  )}
+</div>
+
         </div>
       )}
-
-      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending Actions</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-100 rounded-lg">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                <ClockCircleOutlined className="text-yellow-600 text-xl" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">
-                  {pendingGrading} submission{pendingGrading !== 1 ? 's' : ''} need grading
-                </p>
-                <p className="text-xs text-gray-500">Last submission: {lastSubmission}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
+
+// Helper function to get month name from month number
+const getMonthName = (monthNumber) => {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  if (monthNumber >= 1 && monthNumber <= 12) {
+    return months[monthNumber - 1];
+  }
+  return `Month ${monthNumber}`;
+};
+
+const StatCard = ({ icon, title, value, color, bgColor, iconColor }) => (
+  <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+        <p className="text-3xl font-bold text-gray-900">{value}</p>
+      </div>
+      <div className={`${bgColor} p-4 rounded-full`}>
+        <div className={`${iconColor} text-2xl`}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 const StatBar = ({ label, value, percentage, color }) => (
   <div>

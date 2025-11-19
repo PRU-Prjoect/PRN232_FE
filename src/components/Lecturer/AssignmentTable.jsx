@@ -1,6 +1,6 @@
 import React from 'react';
 import { StarOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import { getAssignmentStatusInfo, isAssignmentCompleted } from '../../utils/statusHelpers';
+import { getAssignmentStatusInfo, isAssignmentCompleted, isAssignmentInProgress } from '../../utils/statusHelpers';
 import { formatDateTime } from '../../utils/dateHelpers';
 import LoadingSpinner from '../common/LoadingSpinner';
 
@@ -52,6 +52,8 @@ const AssignmentTable = ({
                 : assignment.totalscore !== null && assignment.totalscore !== undefined
                 ? assignment.totalscore
                 : 'N/A';
+              const isInProgress = isAssignmentInProgress(assignment.status);
+              const gradeDisabled = isCompleted || isInProgress;
 
               return (
                 <tr key={assignment.id} className="hover:bg-gray-50">
@@ -71,12 +73,18 @@ const AssignmentTable = ({
                       <button
                         onClick={() => onGrade(assignment, examId)}
                         className={`px-3 py-1 text-white text-xs font-medium rounded-md transition-colors flex items-center gap-1 ${
-                          isCompleted
+                          gradeDisabled
                             ? 'bg-gray-400 cursor-not-allowed opacity-60'
                             : 'bg-green-500 hover:bg-green-600'
                         }`}
-                        title={isCompleted ? 'Grade already approved. Cannot grade again.' : 'Grade this assignment'}
-                        disabled={isCompleted}
+                        title={
+                          isCompleted
+                            ? 'Grade already approved. Cannot grade again.'
+                            : isInProgress
+                            ? 'Assignment already has a score. Please approve instead.'
+                            : 'Grade this assignment'
+                        }
+                        disabled={gradeDisabled}
                       >
                         <StarOutlined />
                         Grade

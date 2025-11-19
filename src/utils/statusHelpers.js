@@ -35,6 +35,10 @@ export const isAssignmentCompleted = (status) => {
   return parseAssignmentStatus(status) === 2;
 };
 
+export const isAssignmentInProgress = (status) => {
+  return parseAssignmentStatus(status) === 1;
+};
+
 
 export const getStatusBadgeClass = (status) => {
   switch (status) {

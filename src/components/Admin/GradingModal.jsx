@@ -153,12 +153,12 @@ const GradingModal = ({ submission, onClose, onSave }) => {
                   <p className="text-xs text-gray-500">Assignment ID</p>
                   <p className="text-sm font-medium">{submission.id || 'N/A'}</p>
                 </div>
-                <div>
+                {/* <div>
                   <p className="text-xs text-gray-500">Current Grade</p>
                   <p className="text-sm font-medium">
                     {submission.grade !== null && submission.grade !== undefined ? `${submission.grade}/10` : 'Not graded'}
                   </p>
-                </div>
+                </div> */}
               </div>
             </div>
 
@@ -179,7 +179,7 @@ const GradingModal = ({ submission, onClose, onSave }) => {
                   required
                 />
               </div>
-              <div className="mb-4">
+              {/* <div className="mb-4">
                 <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-1">
                   Feedback
                 </label>
@@ -191,7 +191,7 @@ const GradingModal = ({ submission, onClose, onSave }) => {
                   className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
                   placeholder="Provide feedback on the submission..."
                 />
-              </div>
+              </div> */}
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
